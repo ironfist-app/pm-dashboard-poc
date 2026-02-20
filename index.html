@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IronFist HQ — Mini Kanban</title>
+  <style>
+    :root{--bg:#0b1220;--panel:#121b2e;--panel2:#0f1729;--text:#e7eefc;--muted:#a8b3cf;--accent:#4f8cff;--good:#2dd4bf;--warn:#fbbf24;--border:rgba(255,255,255,.08);--shadow:0 10px 25px rgba(0,0,0,.35);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+    body{margin:0;background:radial-gradient(1200px 600px at 20% 0%, rgba(79,140,255,.18), transparent 60%), var(--bg);color:var(--text);} 
+    header{padding:18px 16px 10px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;backdrop-filter:blur(10px);background:rgba(11,18,32,.65);border-bottom:1px solid var(--border);z-index:10;}
+    h1{font-size:16px;margin:0;letter-spacing:.2px;}
+    .sub{font-size:12px;color:var(--muted);margin-top:2px;}
+    .left{display:flex;flex-direction:column;}
+    .btn{appearance:none;border:1px solid var(--border);background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));color:var(--text);padding:10px 12px;border-radius:10px;font-weight:600;font-size:12px;box-shadow:var(--shadow);cursor:pointer;}
+    .btn.secondary{background:transparent;box-shadow:none;}
+    .wrap{padding:14px 12px 22px;max-width:1100px;margin:0 auto;}
+    .board{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:12px;}
+    @media (max-width:820px){.board{grid-template-columns:1fr;}header{position:static;}}
+    .col{background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));border:1px solid var(--border);border-radius:16px;overflow:hidden;}
+    .col-head{padding:12px 12px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);background:rgba(18,27,46,.55);} 
+    .col-title strong{font-size:13px;}
+    .count{font-size:11px;color:var(--muted);} 
+    .pill{padding:2px 8px;border-radius:999px;border:1px solid var(--border);font-size:11px;}
+    .add{display:flex;gap:8px;align-items:center;}
+    .add input{width:150px;max-width:45vw;background:rgba(15,23,41,.7);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px 10px;font-size:12px;outline:none;}
+    .list{list-style:none;margin:0;padding:10px;min-height:120px;display:flex;flex-direction:column;gap:10px;}
+    .card{background:rgba(15,23,41,.65);border:1px solid var(--border);border-radius:14px;padding:10px 10px 8px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;}
+    .row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+    .text{font-size:13px;line-height:1.25;word-break:break-word;}
+    .meta{font-size:11px;color:var(--muted);display:flex;gap:10px;align-items:center;}
+    .actions{display:flex;gap:6px;}
+    .icon{background:transparent;border:1px solid var(--border);color:var(--text);border-radius:10px;padding:6px 8px;cursor:pointer;font-size:12px;}
+    .dragging{opacity:.65;}
+    .footer{margin-top:14px;color:var(--muted);font-size:11px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  </style>
+</head>
+<body>
+<header>
+  <div class="left">
+    <h1>IronFist HQ — Mini Kanban</h1>
+    <div class="sub">Local-first. Drag cards between columns. Tap a card to edit.</div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <button class="btn secondary" id="exportBtn">Export JSON</button>
+    <button class="btn" id="resetBtn">Reset</button>
+  </div>
+</header>
+<div class="wrap">
+  <div class="board" id="board"></div>
+  <div class="footer">
+    <div>Works in Safari/Chrome on iPhone. No account. No server.</div>
+    <div>Storage key: <span class="pill" id="keyLabel"></span></div>
+  </div>
+</div>
+<script>
+  const STORAGE_KEY='ironfist.kanban.v2';
+  document.getElementById('keyLabel').textContent=STORAGE_KEY;
+  const COLUMNS=[
+    {id:'todo',title:'To Do',color:'var(--accent)'},
+    {id:'ongoing',title:'Ongoing',color:'var(--warn)'},
+    {id:'done',title:'Completed',color:'var(--good)'}
+  ];
+  const uid=()=>Math.random().toString(16).slice(2)+Date.now().toString(16);
+  const load=()=>{try{const r=localStorage.getItem(STORAGE_KEY);return r?JSON.parse(r):null}catch(e){return null}};
+  const save=(s)=>localStorage.setItem(STORAGE_KEY,JSON.stringify(s));
+  const fmt=(ms)=>{try{return new Date(ms).toLocaleString(undefined,{month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'})}catch(e){return ''}};
+  const defaultState=()=>({updatedAt:new Date().toISOString(),columns:{
+    todo:[{id:uid(),text:'Example: add a task',createdAt:Date.now()}],
+    ongoing:[{id:uid(),text:'Example: move it across',createdAt:Date.now()}],
+    done:[{id:uid(),text:'Example: ship',createdAt:Date.now()}]
+  }});
+  let state=load()||defaultState();
+
+  function findCard(id){
+    for(const c of COLUMNS){
+      const arr=state.columns[c.id]||[];
+      const card=arr.find(x=>x.id===id);
+      if(card) return card;
+    }
+    return null;
+  }
+
+  function render(){
+    const board=document.getElementById('board');
+    board.innerHTML='';
+
+    for(const col of COLUMNS){
+      const section=document.createElement('section');
+      section.className='col';
+      const head=document.createElement('div');
+      head.className='col-head';
+      head.innerHTML=`
+        <div class="col-title">
+          <strong>${col.title}</strong>
+          <div class="count"><span class="pill" style="border-color:${col.color};">${(state.columns[col.id]||[]).length}</span> cards</div>
+        </div>
+        <div class="add">
+          <input placeholder="Add item…" />
+          <button class="icon">＋</button>
+        </div>
+      `;
+      const input=head.querySelector('input');
+      const addBtn=head.querySelector('button');
+      addBtn.onclick=()=>{
+        const t=(input.value||'').trim();
+        if(!t) return;
+        (state.columns[col.id] ||= []).unshift({id:uid(),text:t,createdAt:Date.now()});
+        state.updatedAt=new Date().toISOString();
+        save(state); render();
+      };
+      input.addEventListener('keydown', e=>{ if(e.key==='Enter') addBtn.click(); });
+
+      const list=document.createElement('ul');
+      list.className='list';
+      list.dataset.col=col.id;
+      list.ondragover=(e)=>{e.preventDefault();};
+      list.ondrop=(e)=>{
+        e.preventDefault();
+        const id=e.dataTransfer.getData('text/plain');
+        const from=e.dataTransfer.getData('from-col');
+        if(!id||!from) return;
+        if(from===col.id) return;
+        const card=findCard(id);
+        if(!card) return;
+        state.columns[from]=(state.columns[from]||[]).filter(x=>x.id!==id);
+        (state.columns[col.id] ||= []).unshift(card);
+        state.updatedAt=new Date().toISOString();
+        save(state); render();
+      };
+
+      for(const card of (state.columns[col.id]||[])){
+        const li=document.createElement('li');
+        li.className='card';
+        li.draggable=true;
+        li.dataset.id=card.id;
+        li.ondragstart=(e)=>{
+          li.classList.add('dragging');
+          e.dataTransfer.setData('text/plain', card.id);
+          e.dataTransfer.setData('from-col', col.id);
+        };
+        li.ondragend=()=>li.classList.remove('dragging');
+
+        const row=document.createElement('div');
+        row.className='row';
+        const text=document.createElement('div');
+        text.className='text';
+        text.textContent=card.text;
+
+        const actions=document.createElement('div');
+        actions.className='actions';
+        const edit=document.createElement('button'); edit.className='icon'; edit.textContent='Edit';
+        const del=document.createElement('button'); del.className='icon'; del.textContent='Del';
+        actions.append(edit, del);
+
+        const doEdit=()=>{
+          const next=prompt('Edit item', card.text);
+          if(next===null) return;
+          const t=next.trim();
+          if(!t) return;
+          card.text=t;
+          state.updatedAt=new Date().toISOString();
+          save(state); render();
+        };
+        text.onclick=doEdit;
+        edit.onclick=doEdit;
+        del.onclick=()=>{
+          if(!confirm('Delete this item?')) return;
+          state.columns[col.id]=(state.columns[col.id]||[]).filter(x=>x.id!==card.id);
+          state.updatedAt=new Date().toISOString();
+          save(state); render();
+        };
+
+        row.append(text, actions);
+        const meta=document.createElement('div');
+        meta.className='meta';
+        meta.innerHTML=`<span class="pill" style="border-color:${col.color};">${col.title}</span><span>Created: ${fmt(card.createdAt)}</span>`;
+        li.append(row, meta);
+        list.appendChild(li);
+      }
+
+      section.append(head, list);
+      board.appendChild(section);
+    }
+  }
+
+  document.getElementById('resetBtn').onclick=()=>{
+    if(!confirm('Reset the board?')) return;
+    state=defaultState(); save(state); render();
+  };
+  document.getElementById('exportBtn').onclick=()=>{
+    const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='ironfist-kanban.json'; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  };
+
+  save(state);
+  render();
+</script>
+</body>
+</html>
