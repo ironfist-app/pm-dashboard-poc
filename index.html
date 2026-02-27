@@ -248,6 +248,7 @@
       <div class="sub" id="subtitle">Noir prototype · local-first</div>
     </div>
     <div class="toolbar">
+      <button class="btn secondary" id="backBtn" style="display:none">← Back</button>
       <span class="pill" id="routePill">Home</span>
       <button class="btn secondary" id="exportBtn">Export</button>
       <button class="btn secondary" id="importBtn">Import</button>
@@ -396,6 +397,7 @@
     }
 
     const STORAGE_KEY='ironfist.hq.noir.v0_3';
+    const ROUTE_KEY='ironfist.hq.noir.lastRoute';
 
     const COLUMNS=[
       {id:'todo', title:'To Do', color:'#7c5cff'},
@@ -439,11 +441,21 @@
       return h||'home';
     }
 
+    function titleize(route){
+      return route[0].toUpperCase()+route.slice(1);
+    }
+
     function renderRoute(){
       const route=getRoute();
       document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
       document.getElementById('screen-'+route)?.classList.add('active');
-      document.getElementById('routePill').textContent = route[0].toUpperCase()+route.slice(1);
+
+      // Back + breadcrumbs
+      const backBtn=document.getElementById('backBtn');
+      backBtn.style.display = route==='home' ? 'none' : 'inline-flex';
+      document.getElementById('routePill').textContent = route==='home' ? 'Home' : `Home › ${titleize(route)}`;
+
+      try{ localStorage.setItem(ROUTE_KEY, route); }catch(e){}
 
       // FAB only on content screens
       const fab=document.getElementById('fab');
@@ -683,6 +695,13 @@
 
     // toolbar
     document.getElementById('homeBtn').onclick=()=>setRoute('home');
+    document.getElementById('backBtn').onclick=()=>{
+      // Prefer browser history if it exists; fallback to Home.
+      try{
+        if(history.length>1 && location.hash){ history.back(); return; }
+      }catch(e){}
+      setRoute('home');
+    };
 
     // actions
     document.getElementById('saveFocus').onclick=()=>{
@@ -756,7 +775,18 @@
 
     window.addEventListener('hashchange', renderRoute);
 
+    function bootRoute(){
+      // Deep links win. Otherwise, reopen where you left off.
+      if((location.hash||'').trim()) return;
+      try{
+        const last=(localStorage.getItem(ROUTE_KEY)||'').trim();
+        const allowed=['home','mission','tasks','projects','approvals','trends'];
+        if(last && allowed.includes(last) && last!=='home') location.hash = '#'+last;
+      }catch(e){}
+    }
+
     // init
+    bootRoute();
     save(state);
     renderAll();
   </script>
