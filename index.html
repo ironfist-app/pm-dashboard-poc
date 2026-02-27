@@ -226,7 +226,7 @@
       display:none;
       align-items:center;
       justify-content:center;
-    
+
       transition: transform .16s var(--ease), filter .16s var(--ease);
     }
     .fab.show{ display:flex; }
@@ -412,7 +412,7 @@
     <section class="screen" id="screen-projects">
       <div class="card">
         <div class="head">
-          <div class="title"><strong>Projects</strong><span>Simple on purpose.</span></div>
+          <div class="title"><strong>Projects</strong><span>Tap a project to go deep.</span></div>
         </div>
         <div class="body">
           <div class="row">
@@ -421,6 +421,26 @@
           </div>
           <div class="hint">Tip: keep projects nouns. Put verbs in Tasks.</div>
           <div class="list" id="projList" style="margin-top:12px;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROJECT DETAIL -->
+    <section class="screen" id="screen-project">
+      <div class="card">
+        <div class="head">
+          <div class="title">
+            <strong id="projTitle">Project</strong>
+            <span id="projSub">—</span>
+          </div>
+          <span class="pill" id="projCounts">—</span>
+        </div>
+        <div class="body">
+          <div class="row" style="justify-content:space-between;">
+            <div class="hint" id="projHint" style="margin-top:0;">Linked tasks only. Create tasks here to link them.</div>
+            <button class="btn secondary" id="projEditBtn">Edit</button>
+          </div>
+          <div class="board" id="projBoard" style="margin-top:12px;"></div>
         </div>
       </div>
     </section>
@@ -491,7 +511,7 @@
       }catch(e){}
     }
 
-    const STORAGE_KEY='ironfist.hq.noir.v0_3';
+    const STORAGE_KEY='ironfist.hq.noir.v0_4';
     const ROUTE_KEY='ironfist.hq.noir.lastRoute';
 
     const COLUMNS=[
@@ -519,11 +539,11 @@
     function defaultState(){
       return {
         updatedAt: new Date().toISOString(),
-        ironfistFocus: 'Ship Noir HQ v0.3: clean home + deep screens.',
+        ironfistFocus: 'Ship Noir HQ v0.4: projects deep screen + linked tasks.',
         columns: {
-          todo: [{id:uid(), text:'Pick the iPhone app tabs (Mission / Tasks / Projects / Approvals).', createdAt: now(), movedAt: now()}],
-          ongoing: [{id:uid(), text:'Make the UI feel premium and calm.', createdAt: now(), movedAt: now()}],
-          done: [{id:uid(), text:'Get a working prototype online.', createdAt: now()-86400000, movedAt: now()-3600000}],
+          todo: [{id:uid(), text:'Pick the iPhone app tabs (Mission / Tasks / Projects / Approvals).', createdAt: now(), movedAt: now(), projectId: null}],
+          ongoing: [{id:uid(), text:'Make the UI feel premium and calm.', createdAt: now(), movedAt: now(), projectId: null}],
+          done: [{id:uid(), text:'Get a working prototype online.', createdAt: now()-86400000, movedAt: now()-3600000, projectId: null}],
         },
         projects: [{id:uid(), name:'IronFist HQ iPhone app', createdAt: now(), status:'active'}],
         approvals: [{id:uid(), text:'Approve: merge plan for security PR backlog.', createdAt: now(), status:'open'}]
@@ -532,6 +552,28 @@
 
     let state = load() || defaultState();
 
+    function migrate(){
+      state.columns ||= {todo:[],ongoing:[],done:[]};
+      state.projects ||= [];
+      state.approvals ||= [];
+      for(const colId of Object.keys(state.columns||{})){
+        for(const card of (state.columns[colId]||[])){
+          if(!('projectId' in card)) card.projectId = null;
+          if(!card.createdAt) card.createdAt = now();
+          if(!card.movedAt) card.movedAt = card.createdAt;
+          if(!card.id) card.id = uid();
+        }
+      }
+    }
+    migrate();
+
+    function routeInfo(){
+      const h=(location.hash||'').replace('#','').trim();
+      if(!h) return { route:'home' };
+      if(h.startsWith('project:')) return { route:'project', projectId: h.slice('project:'.length) };
+      return { route: h };
+    }
+
     function setRoute(route){
       const routes=['home','mission','tasks','projects','approvals','trends'];
       if(!routes.includes(route)) route='home';
@@ -539,38 +581,53 @@
       renderRoute();
     }
 
-    function getRoute(){
-      const h=(location.hash||'').replace('#','').trim();
-      return h||'home';
-    }
-
     function titleize(route){
       return route[0].toUpperCase()+route.slice(1);
     }
 
+    function escapeHtml(s){
+      return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    function normalize(s){ return String(s||'').trim().toLowerCase(); }
+
+    function getProjectById(id){ return (state.projects||[]).find(p=>p.id===id) || null; }
+    function getProjectNameById(id){ return getProjectById(id)?.name || ''; }
+    function findProjectByName(name){
+      const n=normalize(name);
+      if(!n) return null;
+      return (state.projects||[]).find(p=>normalize(p.name)===n) || null;
+    }
+
     function renderRoute(){
-      const route=getRoute();
+      const info=routeInfo();
+      const route=info.route;
+
       document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
       document.getElementById('screen-'+route)?.classList.add('active');
 
       // Back + breadcrumbs
       const backBtn=document.getElementById('backBtn');
       backBtn.style.display = route==='home' ? 'none' : 'inline-flex';
-      document.getElementById('routePill').textContent = route==='home' ? 'Home' : `Home › ${titleize(route)}`;
 
-      try{ localStorage.setItem(ROUTE_KEY, route); }catch(e){}
+      if(route==='project'){
+        const p=getProjectById(info.projectId);
+        const name=p?.name || 'Project';
+        document.getElementById('routePill').textContent = `Home › Projects › ${name}`;
+      } else {
+        document.getElementById('routePill').textContent = route==='home' ? 'Home' : `Home › ${titleize(route)}`;
+      }
+
+      // Store last route (don’t reopen inside a specific project by default)
+      try{ localStorage.setItem(ROUTE_KEY, route==='project' ? 'projects' : route); }catch(e){}
 
       // FAB only on content screens
       const fab=document.getElementById('fab');
-      const show = ['tasks','projects','approvals'].includes(route);
+      const show = ['tasks','projects','approvals','project'].includes(route);
       fab.classList.toggle('show', show);
 
       const subtitle=document.getElementById('subtitle');
       subtitle.textContent = route==='home' ? 'Noir prototype · local-first' : 'Noir · '+route;
-    }
-
-    function escapeHtml(s){
-      return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
     }
 
     // Bottom sheet (replaces prompt/confirm for iPhone usability)
@@ -647,6 +704,39 @@
       document.getElementById('updatedPill').textContent = 'Updated: ' + (state.updatedAt ? state.updatedAt.replace('T',' ').slice(0,16) : '—');
     }
 
+    function cardMetaBits({colTitle, card}){
+      const bits=[`<span>${escapeHtml(colTitle)}</span>`, `<span>Created: ${fmtTime(card.createdAt)}</span>`];
+      const pn = card.projectId ? getProjectNameById(card.projectId) : '';
+      if(pn) bits.unshift(`<span class="pill" style="padding:4px 8px; box-shadow:none;">${escapeHtml(pn)}</span>`);
+      return bits.join('');
+    }
+
+    function openAssignProjectSheet(card){
+      const current = card.projectId ? getProjectNameById(card.projectId) : '';
+      openSheet({
+        title: 'Assign project',
+        sub: 'Type the exact project name (or blank to clear).',
+        text: current,
+        placeholder: 'Project name…',
+        actions: [
+          { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+          { kind:'secondary', label:'Clear', onClick: ()=>{ card.projectId=null; save(state); closeSheet(); toast('Cleared.'); renderAll(); } },
+          { label:'Set', onClick: (val)=>{
+              const t=(val||'').trim();
+              if(!t){ card.projectId=null; save(state); closeSheet(); toast('Cleared.'); renderAll(); return; }
+              const p=findProjectByName(t);
+              if(!p){ toast('Not found.'); return; }
+              card.projectId=p.id;
+              save(state);
+              closeSheet();
+              toast('Assigned.');
+              renderAll();
+            }
+          }
+        ]
+      });
+    }
+
     function renderBoard(){
       const board=document.getElementById('board');
       if(!board) return;
@@ -704,7 +794,7 @@
                 <button class="icon" data-act="del">Del</button>
               </div>
             </div>
-            <div class="meta"><span>${col.title}</span><span>Created: ${fmtTime(card.createdAt)}</span></div>
+            <div class="meta">${cardMetaBits({colTitle:col.title, card})}</div>
           `;
 
           const [edit,del]=li.querySelectorAll('button');
@@ -716,6 +806,7 @@
               placeholder: 'Task…',
               actions: [
                 { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+                { kind:'secondary', label:'Project', onClick: ()=>openAssignProjectSheet(card) },
                 { label:'Save', onClick: (val)=>{
                     const t=(val||'').trim();
                     if(!t) return;
@@ -734,7 +825,6 @@
                       placeholder:'',
                       actions:[
                         { kind:'secondary', label:'Keep', onClick: ()=>{
-                            // reopen editor
                             closeSheet();
                             edit.onclick();
                           }
@@ -786,7 +876,7 @@
               { label:'Add', onClick: (val)=>{
                   const t=(val||'').trim();
                   if(!t) return;
-                  (state.columns[col.id] ||= []).unshift({id:uid(), text:t, createdAt: now(), movedAt: now()});
+                  (state.columns[col.id] ||= []).unshift({id:uid(), text:t, createdAt: now(), movedAt: now(), projectId: null});
                   save(state);
                   closeSheet();
                   toast('Added.');
@@ -819,10 +909,17 @@
           <div class="meta"><span>${escapeHtml(p.status||'active')}</span><span>${fmtTime(p.createdAt||now())}</span></div>
         `;
         const [edit,del]=div.querySelectorAll('button');
+
+        // Tap name to go deep
+        div.querySelector('.txt')?.addEventListener('click', ()=>{
+          location.hash = '#project:'+p.id;
+          renderAll();
+        });
+
         edit.onclick=()=>{
           openSheet({
             title:'Edit project',
-            sub: 'Projects',
+            sub: 'Name',
             text: p.name,
             placeholder:'Project name…',
             actions:[
@@ -840,15 +937,24 @@
               { kind:'danger', label:'Delete', onClick: ()=>{
                   openSheet({
                     title:'Delete project?',
-                    sub:'This cannot be undone.',
+                    sub:'This cannot be undone. Tasks will remain (unlinked).',
                     text: p.name,
                     actions:[
                       { kind:'secondary', label:'Keep', onClick: ()=>{ closeSheet(); edit.onclick(); } },
                       { kind:'danger', label:'Delete', onClick: ()=>{
+                          // Unlink tasks
+                          for(const colId of Object.keys(state.columns||{})){
+                            for(const card of (state.columns[colId]||[])){
+                              if(card.projectId===p.id) card.projectId=null;
+                            }
+                          }
                           state.projects=(state.projects||[]).filter(x=>x.id!==p.id);
                           save(state);
                           closeSheet();
                           toast('Deleted.');
+                          // if viewing this project, pop back
+                          const info=routeInfo();
+                          if(info.route==='project' && info.projectId===p.id) setRoute('projects');
                           renderAll();
                         }
                       }
@@ -862,11 +968,16 @@
         del.onclick=()=>{
           openSheet({
             title:'Delete project?',
-            sub:'Projects',
+            sub:'Tasks will remain (unlinked).',
             text: p.name,
             actions:[
               { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
               { kind:'danger', label:'Delete', onClick: ()=>{
+                  for(const colId of Object.keys(state.columns||{})){
+                    for(const card of (state.columns[colId]||[])){
+                      if(card.projectId===p.id) card.projectId=null;
+                    }
+                  }
                   state.projects=(state.projects||[]).filter(x=>x.id!==p.id);
                   save(state);
                   closeSheet();
@@ -878,6 +989,200 @@
           });
         };
         el.appendChild(div);
+      }
+    }
+
+    function renderProjectDetail(){
+      const info=routeInfo();
+      if(info.route!=='project') return;
+
+      const p=getProjectById(info.projectId);
+      const titleEl=document.getElementById('projTitle');
+      const subEl=document.getElementById('projSub');
+      const countsEl=document.getElementById('projCounts');
+      const boardEl=document.getElementById('projBoard');
+      const hintEl=document.getElementById('projHint');
+      const editBtn=document.getElementById('projEditBtn');
+
+      boardEl.innerHTML='';
+
+      if(!p){
+        titleEl.textContent='Project not found';
+        subEl.textContent='It may have been deleted.';
+        countsEl.textContent='—';
+        hintEl.textContent='';
+        editBtn.style.display='none';
+        return;
+      }
+
+      editBtn.style.display='inline-flex';
+      titleEl.textContent=p.name;
+      subEl.textContent=`${p.status||'active'} · Created ${fmtTime(p.createdAt||now())}`;
+
+      // counts
+      const counts={todo:0,ongoing:0,done:0};
+      for(const col of COLUMNS){
+        counts[col.id]=(state.columns[col.id]||[]).filter(c=>c.projectId===p.id).length;
+      }
+      countsEl.textContent = `To Do ${counts.todo} · Ongoing ${counts.ongoing} · Done ${counts.done}`;
+
+      hintEl.textContent = 'Linked tasks only. Create tasks here to link them.';
+
+      editBtn.onclick=()=>{
+        openSheet({
+          title:'Edit project',
+          sub:'First line = name. Second line = status (active/paused/done).',
+          text: `${p.name}\n${p.status||'active'}`,
+          placeholder:'Name\nstatus',
+          actions:[
+            { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+            { label:'Save', onClick: (val)=>{
+                const lines=String(val||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+                if(!lines.length) return;
+                p.name = lines[0];
+                if(lines[1]) p.status = lines[1];
+                save(state);
+                closeSheet();
+                toast('Saved.');
+                renderAll();
+              }
+            }
+          ]
+        });
+      };
+
+      // Render a filtered board (only tasks linked to this project)
+      for(const col of COLUMNS){
+        const section=document.createElement('section');
+        section.className='col';
+
+        const linked=(state.columns[col.id]||[]).filter(c=>c.projectId===p.id);
+        section.innerHTML = `
+          <div class="colhead">
+            <div class="meta"><span class="badge" style="background:${col.color}"></span><strong>${col.title}</strong><span class="pill">${linked.length}</span></div>
+            <button class="icon" data-add="${col.id}">Add</button>
+          </div>
+          <ul class="cards" data-col="${col.id}"></ul>
+        `;
+
+        const list=section.querySelector('ul.cards');
+        list.ondragover=(e)=>e.preventDefault();
+        list.ondrop=(e)=>{
+          e.preventDefault();
+          const id=e.dataTransfer.getData('text/plain');
+          const from=e.dataTransfer.getData('from-col');
+          if(!id||!from) return;
+          if(from===col.id) return;
+          const card=findCard(id);
+          if(!card) return;
+          if(card.projectId!==p.id) return;
+          state.columns[from]=(state.columns[from]||[]).filter(x=>x.id!==id);
+          (state.columns[col.id] ||= []).unshift(card);
+          card.movedAt = now();
+          save(state);
+          renderAll();
+        };
+
+        for(const card of linked){
+          const li=document.createElement('li');
+          li.className='item';
+          li.draggable=true;
+          li.dataset.id=card.id;
+          li.ondragstart=(e)=>{
+            li.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', card.id);
+            e.dataTransfer.setData('from-col', col.id);
+          };
+          li.ondragend=()=>li.classList.remove('dragging');
+
+          li.innerHTML = `
+            <div class="top">
+              <div class="txt">${escapeHtml(card.text)}</div>
+              <div class="actions">
+                <button class="icon">Edit</button>
+                <button class="icon">Del</button>
+              </div>
+            </div>
+            <div class="meta">${cardMetaBits({colTitle:col.title, card})}</div>
+          `;
+
+          const [edit,del]=li.querySelectorAll('button');
+          edit.onclick=()=>{
+            openSheet({
+              title: 'Edit task',
+              sub: col.title,
+              text: card.text,
+              placeholder: 'Task…',
+              actions: [
+                { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+                { kind:'secondary', label:'Project', onClick: ()=>openAssignProjectSheet(card) },
+                { label:'Save', onClick: (val)=>{
+                    const t=(val||'').trim();
+                    if(!t) return;
+                    card.text=t;
+                    save(state);
+                    closeSheet();
+                    toast('Saved.');
+                    renderAll();
+                  }
+                },
+                { kind:'danger', label:'Delete', onClick: ()=>{
+                    state.columns[col.id]=(state.columns[col.id]||[]).filter(x=>x.id!==card.id);
+                    save(state);
+                    closeSheet();
+                    toast('Deleted.');
+                    renderAll();
+                  }
+                }
+              ]
+            });
+          };
+
+          del.onclick=()=>{
+            openSheet({
+              title:'Delete task?',
+              sub: col.title,
+              text: card.text,
+              actions:[
+                { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+                { kind:'danger', label:'Delete', onClick: ()=>{
+                    state.columns[col.id]=(state.columns[col.id]||[]).filter(x=>x.id!==card.id);
+                    save(state);
+                    closeSheet();
+                    toast('Deleted.');
+                    renderAll();
+                  }
+                }
+              ]
+            });
+          };
+
+          list.appendChild(li);
+        }
+
+        section.querySelector('[data-add]')?.addEventListener('click', ()=>{
+          openSheet({
+            title:'New task',
+            sub: `${p.name} · ${col.title}`,
+            text:'',
+            placeholder:'Task…',
+            actions:[
+              { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+              { label:'Add', onClick: (val)=>{
+                  const t=(val||'').trim();
+                  if(!t) return;
+                  (state.columns[col.id] ||= []).unshift({id:uid(), text:t, createdAt: now(), movedAt: now(), projectId: p.id});
+                  save(state);
+                  closeSheet();
+                  toast('Added.');
+                  renderAll();
+                }
+              }
+            ]
+          });
+        });
+
+        boardEl.appendChild(section);
       }
     }
 
@@ -1061,6 +1366,7 @@
       renderMission();
       renderBoard();
       renderProjects();
+      renderProjectDetail();
       renderApprovals();
       renderTrends();
       renderRoute();
@@ -1123,7 +1429,10 @@
           const txt=await f.text();
           const obj=JSON.parse(txt);
           if(!obj || !obj.columns) throw new Error('bad');
-          state=obj; save(state); renderAll();
+          state=obj;
+          migrate();
+          save(state);
+          renderAll();
           toast('Imported.');
         }catch(e){ toast('Import failed.'); }
       };
@@ -1132,7 +1441,9 @@
 
     // FAB
     document.getElementById('fab').onclick=()=>{
-      const route=getRoute();
+      const info=routeInfo();
+      const route=info.route;
+
       if(route==='tasks'){
         openSheet({
           title:'New task',
@@ -1144,7 +1455,7 @@
             { label:'Add', onClick: (val)=>{
                 const t=(val||'').trim();
                 if(!t) return;
-                (state.columns.todo ||= []).unshift({id:uid(), text:t, createdAt: now(), movedAt: now()});
+                (state.columns.todo ||= []).unshift({id:uid(), text:t, createdAt: now(), movedAt: now(), projectId: null});
                 save(state);
                 closeSheet();
                 toast('Added.');
@@ -1193,10 +1504,32 @@
             }
           ]
         });
+      } else if(route==='project'){
+        const p=getProjectById(info.projectId);
+        if(!p) return;
+        openSheet({
+          title:'New task',
+          sub: p.name,
+          text:'',
+          placeholder:'Task…',
+          actions:[
+            { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+            { label:'Add', onClick: (val)=>{
+                const t=(val||'').trim();
+                if(!t) return;
+                (state.columns.todo ||= []).unshift({id:uid(), text:t, createdAt: now(), movedAt: now(), projectId: p.id});
+                save(state);
+                closeSheet();
+                toast('Added.');
+                renderAll();
+              }
+            }
+          ]
+        });
       }
     };
 
-    window.addEventListener('hashchange', renderRoute);
+    window.addEventListener('hashchange', renderAll);
 
     function bootRoute(){
       // Deep links win. Otherwise, reopen where you left off.
