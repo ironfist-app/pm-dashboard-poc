@@ -3,199 +3,597 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>IronFist HQ — Mini Kanban</title>
+  <meta name="theme-color" content="#0b1220" />
+  <title>IronFist HQ — Private Ops Prototype</title>
   <style>
-    :root{--bg:#0b1220;--panel:#121b2e;--panel2:#0f1729;--text:#e7eefc;--muted:#a8b3cf;--accent:#4f8cff;--good:#2dd4bf;--warn:#fbbf24;--border:rgba(255,255,255,.08);--shadow:0 10px 25px rgba(0,0,0,.35);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
-    body{margin:0;background:radial-gradient(1200px 600px at 20% 0%, rgba(79,140,255,.18), transparent 60%), var(--bg);color:var(--text);} 
-    header{padding:18px 16px 10px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;backdrop-filter:blur(10px);background:rgba(11,18,32,.65);border-bottom:1px solid var(--border);z-index:10;}
-    h1{font-size:16px;margin:0;letter-spacing:.2px;}
-    .sub{font-size:12px;color:var(--muted);margin-top:2px;}
-    .left{display:flex;flex-direction:column;}
-    .btn{appearance:none;border:1px solid var(--border);background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));color:var(--text);padding:10px 12px;border-radius:10px;font-weight:600;font-size:12px;box-shadow:var(--shadow);cursor:pointer;}
-    .btn.secondary{background:transparent;box-shadow:none;}
-    .wrap{padding:14px 12px 22px;max-width:1100px;margin:0 auto;}
-    .board{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:12px;}
-    @media (max-width:820px){.board{grid-template-columns:1fr;}header{position:static;}}
-    .col{background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));border:1px solid var(--border);border-radius:16px;overflow:hidden;}
-    .col-head{padding:12px 12px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);background:rgba(18,27,46,.55);} 
-    .col-title strong{font-size:13px;}
-    .count{font-size:11px;color:var(--muted);} 
-    .pill{padding:2px 8px;border-radius:999px;border:1px solid var(--border);font-size:11px;}
-    .add{display:flex;gap:8px;align-items:center;}
-    .add input{width:150px;max-width:45vw;background:rgba(15,23,41,.7);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px 10px;font-size:12px;outline:none;}
-    .list{list-style:none;margin:0;padding:10px;min-height:120px;display:flex;flex-direction:column;gap:10px;}
-    .card{background:rgba(15,23,41,.65);border:1px solid var(--border);border-radius:14px;padding:10px 10px 8px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;}
-    .row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
-    .text{font-size:13px;line-height:1.25;word-break:break-word;}
-    .meta{font-size:11px;color:var(--muted);display:flex;gap:10px;align-items:center;}
-    .actions{display:flex;gap:6px;}
-    .icon{background:transparent;border:1px solid var(--border);color:var(--text);border-radius:10px;padding:6px 8px;cursor:pointer;font-size:12px;}
+    :root{
+      --bg:#070b14;
+      --bg2:#0b1220;
+      --card:rgba(255,255,255,.06);
+      --card2:rgba(255,255,255,.04);
+      --text:#eaf1ff;
+      --muted:#a7b6d6;
+      --border:rgba(255,255,255,.10);
+      --shadow: 0 18px 45px rgba(0,0,0,.55);
+      --accent:#66a3ff;
+      --good:#2dd4bf;
+      --warn:#fbbf24;
+      --bad:#fb7185;
+      --radius:18px;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+
+    body{
+      margin:0;
+      color:var(--text);
+      background:
+        radial-gradient(900px 600px at 15% 0%, rgba(102,163,255,.18), transparent 60%),
+        radial-gradient(700px 500px at 90% 15%, rgba(45,212,191,.10), transparent 55%),
+        linear-gradient(180deg, var(--bg), var(--bg2));
+    }
+
+    header{
+      position:sticky; top:0; z-index:10;
+      backdrop-filter: blur(10px);
+      background: rgba(7,11,20,.65);
+      border-bottom:1px solid var(--border);
+      padding: 14px 14px 12px;
+      display:flex; gap:12px; align-items:center; justify-content:space-between;
+    }
+
+    .brand{display:flex; flex-direction:column; gap:2px;}
+    .brand h1{font-size:15px; margin:0; letter-spacing:.2px;}
+    .brand .sub{font-size:12px; color:var(--muted);}
+
+    .toolbar{display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;}
+
+    .pill{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:6px 10px; border-radius:999px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      font-size:12px; color:var(--muted);
+    }
+
+    .btn{
+      appearance:none;
+      border:1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.03));
+      color:var(--text);
+      padding:9px 10px;
+      border-radius:12px;
+      font-weight:700;
+      font-size:12px;
+      cursor:pointer;
+      box-shadow: var(--shadow);
+    }
+    .btn.secondary{background:transparent; box-shadow:none;}
+    .btn:active{transform:translateY(1px);}
+
+    .wrap{max-width:1200px; margin:0 auto; padding:14px;}
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap:14px;
+    }
+
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+      header{ position:static; }
+    }
+
+    .card{
+      border:1px solid var(--border);
+      background: linear-gradient(180deg, var(--card), var(--card2));
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    .card .head{
+      padding:12px 12px 10px;
+      display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+      border-bottom:1px solid var(--border);
+      background: rgba(255,255,255,.03);
+    }
+
+    .title{display:flex; flex-direction:column; gap:2px;}
+    .title strong{font-size:13px;}
+    .title span{font-size:11px; color:var(--muted);}
+
+    .body{padding:12px;}
+
+    .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+
+    .input{flex:1; min-width:200px; background:rgba(0,0,0,.20); color:var(--text); border:1px solid var(--border); border-radius:12px; padding:10px 10px; font-size:12px; outline:none;}
+
+    /* Kanban */
+    .board{display:grid; grid-template-columns: repeat(3, minmax(220px,1fr)); gap:12px;}
+    @media (max-width: 820px){ .board{ grid-template-columns: 1fr; } }
+
+    .col{border:1px solid var(--border); border-radius:16px; background:rgba(0,0,0,.14); overflow:hidden;}
+    .col .colhead{padding:10px; display:flex; align-items:center; justify-content:space-between; gap:10px; border-bottom:1px solid var(--border);}
+    .col .colhead .meta{font-size:11px; color:var(--muted); display:flex; gap:8px; align-items:center;}
+    .badge{width:10px; height:10px; border-radius:50%; display:inline-block;}
+
+    .list{list-style:none; margin:0; padding:10px; min-height:110px; display:flex; flex-direction:column; gap:10px;}
+
+    .item{border:1px solid var(--border); border-radius:14px; background:rgba(0,0,0,.20); padding:10px; display:flex; flex-direction:column; gap:8px;}
+    .item .top{display:flex; justify-content:space-between; gap:10px; align-items:flex-start;}
+    .item .txt{font-size:13px; line-height:1.25; word-break:break-word;}
+    .item .meta{font-size:11px; color:var(--muted); display:flex; gap:10px; align-items:center;}
+    .item .actions{display:flex; gap:6px;}
+    .icon{border:1px solid var(--border); background:transparent; color:var(--text); border-radius:10px; padding:6px 8px; font-size:12px; cursor:pointer;}
+    .icon:active{transform:translateY(1px);}
     .dragging{opacity:.65;}
-    .footer{margin-top:14px;color:var(--muted);font-size:11px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+
+    /* Lists */
+    .miniList{display:flex; flex-direction:column; gap:10px;}
+    .mini{border:1px solid var(--border); border-radius:14px; padding:10px; background:rgba(0,0,0,.16);}
+    .mini strong{font-size:12px;}
+    .mini p{margin:6px 0 0; font-size:12px; color:var(--muted);}
+
+    /* Simple chart */
+    .spark{width:100%; height:52px; border:1px solid var(--border); border-radius:14px; background:rgba(0,0,0,.16); display:block;}
+
+    .footer{margin-top:12px; font-size:11px; color:var(--muted); display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; opacity:.95;}
   </style>
 </head>
 <body>
-<header>
-  <div class="left">
-    <h1>IronFist HQ — Mini Kanban</h1>
-    <div class="sub">Local-first. Drag cards between columns. Tap a card to edit.</div>
-  </div>
-  <div style="display:flex;gap:10px;align-items:center;">
-    <button class="btn secondary" id="exportBtn">Export JSON</button>
-    <button class="btn" id="resetBtn">Reset</button>
-  </div>
-</header>
-<div class="wrap">
-  <div class="board" id="board"></div>
-  <div class="footer">
-    <div>Works in Safari/Chrome on iPhone. No account. No server.</div>
-    <div>Storage key: <span class="pill" id="keyLabel"></span></div>
-  </div>
-</div>
-<script>
-  const STORAGE_KEY='ironfist.kanban.v2';
-  document.getElementById('keyLabel').textContent=STORAGE_KEY;
-  const COLUMNS=[
-    {id:'todo',title:'To Do',color:'var(--accent)'},
-    {id:'ongoing',title:'Ongoing',color:'var(--warn)'},
-    {id:'done',title:'Completed',color:'var(--good)'}
-  ];
-  const uid=()=>Math.random().toString(16).slice(2)+Date.now().toString(16);
-  const load=()=>{try{const r=localStorage.getItem(STORAGE_KEY);return r?JSON.parse(r):null}catch(e){return null}};
-  const save=(s)=>localStorage.setItem(STORAGE_KEY,JSON.stringify(s));
-  const fmt=(ms)=>{try{return new Date(ms).toLocaleString(undefined,{month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'})}catch(e){return ''}};
-  const defaultState=()=>({updatedAt:new Date().toISOString(),columns:{
-    todo:[{id:uid(),text:'Example: add a task',createdAt:Date.now()}],
-    ongoing:[{id:uid(),text:'Example: move it across',createdAt:Date.now()}],
-    done:[{id:uid(),text:'Example: ship',createdAt:Date.now()}]
-  }});
-  let state=load()||defaultState();
+  <header>
+    <div class="brand">
+      <h1>IronFist HQ</h1>
+      <div class="sub">Local-first prototype. Nothing leaves your phone unless you export.</div>
+    </div>
+    <div class="toolbar">
+      <span class="pill" id="statusPill">Local-first</span>
+      <button class="btn secondary" id="exportBtn">Export</button>
+      <button class="btn secondary" id="importBtn">Import</button>
+      <button class="btn" id="resetBtn">Reset</button>
+    </div>
+  </header>
 
-  function findCard(id){
-    for(const c of COLUMNS){
-      const arr=state.columns[c.id]||[];
-      const card=arr.find(x=>x.id===id);
-      if(card) return card;
+  <div class="wrap">
+    <div class="grid">
+
+      <section class="card">
+        <div class="head">
+          <div class="title">
+            <strong>HQ Home</strong>
+            <span>What you manage: priorities + projects. What I manage: execution.</span>
+          </div>
+          <span class="pill" id="updatedPill">Updated: —</span>
+        </div>
+        <div class="body">
+
+          <div class="card" style="border-radius:16px; box-shadow:none; margin-bottom:12px;">
+            <div class="head" style="border-bottom:none;">
+              <div class="title">
+                <strong>IronFist (me)</strong>
+                <span>Exactly what I’m pushing next.</span>
+              </div>
+            </div>
+            <div class="body">
+              <div class="row">
+                <input class="input" id="ironfistFocus" placeholder="Example: Consolidate security PR backlog into one merge plan" />
+                <button class="btn" id="saveFocus">Save</button>
+              </div>
+              <div class="footer">
+                <div>Tip: keep this brutally specific.</div>
+                <div>Private: stored on-device.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="head" style="padding:0 0 10px; border:none; background:none;">
+            <div class="title">
+              <strong>Tasks (drag between columns)</strong>
+              <span>Quick capture → move → done.</span>
+            </div>
+          </div>
+
+          <div class="board" id="board"></div>
+
+        </div>
+      </section>
+
+      <aside class="card">
+        <div class="head">
+          <div class="title">
+            <strong>Projects & Approvals</strong>
+            <span>Lightweight, but real.</span>
+          </div>
+        </div>
+        <div class="body">
+
+          <div class="miniList">
+            <div class="mini">
+              <strong>Projects</strong>
+              <p>Add a project, then keep 1–2 next steps in Tasks.</p>
+              <div class="row" style="margin-top:10px;">
+                <input class="input" id="projInput" placeholder="New project…" />
+                <button class="btn" id="addProj">Add</button>
+              </div>
+              <div id="projList" style="margin-top:10px; display:flex; flex-direction:column; gap:8px;"></div>
+            </div>
+
+            <div class="mini">
+              <strong>Approvals (for you)</strong>
+              <p>Anything I want you to approve goes here. Keep it short.</p>
+              <div class="row" style="margin-top:10px;">
+                <input class="input" id="apprInput" placeholder="Approval item…" />
+                <button class="btn" id="addAppr">Add</button>
+              </div>
+              <div id="apprList" style="margin-top:10px; display:flex; flex-direction:column; gap:8px;"></div>
+            </div>
+
+            <div class="mini">
+              <strong>Momentum (last 7 days)</strong>
+              <p>Not a fitness tracker. Just whether work is moving.</p>
+              <svg class="spark" viewBox="0 0 300 52" preserveAspectRatio="none" id="spark"></svg>
+              <div class="footer">
+                <div><span class="pill" id="done7">Done(7d): 0</span></div>
+                <div><span class="pill" id="created7">Created(7d): 0</span></div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="footer" style="margin-top:12px;">
+            <div>No accounts. No server. Export/Import to sync.</div>
+            <div>v0.2</div>
+          </div>
+
+        </div>
+      </aside>
+
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY='ironfist.hq.v0_2';
+
+    const COLUMNS=[
+      {id:'todo', title:'To Do', color:'#66a3ff'},
+      {id:'ongoing', title:'Ongoing', color:'#fbbf24'},
+      {id:'done', title:'Completed', color:'#2dd4bf'},
+    ];
+
+    const uid=()=>Math.random().toString(16).slice(2)+Date.now().toString(16);
+    const now=()=>Date.now();
+
+    const load=()=>{ try{ const r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):null; }catch(e){ return null; } };
+    const save=(s)=>{ s.updatedAt=new Date().toISOString(); localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); };
+
+    const fmtTime=(ms)=>{ try{ return new Date(ms).toLocaleString(undefined,{month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){ return '';} };
+
+    function defaultState(){
+      return {
+        updatedAt: new Date().toISOString(),
+        ironfistFocus: 'Ship an iPhone-ready HQ layout + keep it calm.',
+        columns: {
+          todo: [
+            {id:uid(), text:'Decide the 3 tabs for the iPhone app (Mission / Projects / Approvals).', createdAt: now(), movedAt: now()},
+          ],
+          ongoing: [
+            {id:uid(), text:'Iterate HQ prototype until it feels premium on iPhone.', createdAt: now(), movedAt: now()},
+          ],
+          done: [
+            {id:uid(), text:'Get a working drag/drop tasks prototype online.', createdAt: now()-86400000, movedAt: now()-3600000},
+          ]
+        },
+        projects: [
+          {id:uid(), name:'IronFist HQ iPhone app', createdAt: now(), status:'active'},
+        ],
+        approvals: [
+          {id:uid(), text:'Approve: merge plan for security PR backlog.', createdAt: now(), status:'open'}
+        ]
+      };
     }
-    return null;
-  }
 
-  function render(){
-    const board=document.getElementById('board');
-    board.innerHTML='';
+    let state = load() || defaultState();
 
-    for(const col of COLUMNS){
-      const section=document.createElement('section');
-      section.className='col';
-      const head=document.createElement('div');
-      head.className='col-head';
-      head.innerHTML=`
-        <div class="col-title">
-          <strong>${col.title}</strong>
-          <div class="count"><span class="pill" style="border-color:${col.color};">${(state.columns[col.id]||[]).length}</span> cards</div>
-        </div>
-        <div class="add">
-          <input placeholder="Add item…" />
-          <button class="icon">＋</button>
-        </div>
+    function updateStatusPills(){
+      const upd = document.getElementById('updatedPill');
+      upd.textContent = 'Updated: ' + (state.updatedAt ? state.updatedAt.replace('T',' ').slice(0,16) : '—');
+    }
+
+    function renderSpark(){
+      const svg = document.getElementById('spark');
+      const dayMs = 86400000;
+      const start = now() - 6*dayMs;
+      const bins = Array.from({length:7}, (_,i)=>({day:start+i*dayMs, done:0, created:0}));
+
+      for(const colId of Object.keys(state.columns||{})){
+        for(const card of (state.columns[colId]||[])){
+          const ci = Math.floor((card.createdAt - start)/dayMs);
+          if(ci>=0 && ci<7) bins[ci].created++;
+          if(colId==='done'){
+            const di = Math.floor((card.movedAt - start)/dayMs);
+            if(di>=0 && di<7) bins[di].done++;
+          }
+        }
+      }
+
+      const max = Math.max(1, ...bins.map(b=>Math.max(b.done,b.created)));
+      const w=300,h=52,pad=6;
+
+      const ptsDone = bins.map((b,i)=>{
+        const x = pad + i*((w-2*pad)/6);
+        const y = h-pad - (b.done/max)*(h-2*pad);
+        return [x,y];
+      });
+      const ptsCreated = bins.map((b,i)=>{
+        const x = pad + i*((w-2*pad)/6);
+        const y = h-pad - (b.created/max)*(h-2*pad);
+        return [x,y];
+      });
+
+      const path = (pts)=>'M ' + pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' L ');
+
+      const doneSum = bins.reduce((a,b)=>a+b.done,0);
+      const createdSum = bins.reduce((a,b)=>a+b.created,0);
+      document.getElementById('done7').textContent = `Done(7d): ${doneSum}`;
+      document.getElementById('created7').textContent = `Created(7d): ${createdSum}`;
+
+      svg.innerHTML = `
+        <path d="${path(ptsCreated)}" fill="none" stroke="rgba(102,163,255,.65)" stroke-width="2" />
+        <path d="${path(ptsDone)}" fill="none" stroke="rgba(45,212,191,.75)" stroke-width="2" />
+        ${ptsDone.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="2.8" fill="rgba(45,212,191,.95)"/>`).join('')}
       `;
-      const input=head.querySelector('input');
-      const addBtn=head.querySelector('button');
-      addBtn.onclick=()=>{
-        const t=(input.value||'').trim();
-        if(!t) return;
-        (state.columns[col.id] ||= []).unshift({id:uid(),text:t,createdAt:Date.now()});
-        state.updatedAt=new Date().toISOString();
-        save(state); render();
-      };
-      input.addEventListener('keydown', e=>{ if(e.key==='Enter') addBtn.click(); });
+    }
 
-      const list=document.createElement('ul');
-      list.className='list';
-      list.dataset.col=col.id;
-      list.ondragover=(e)=>{e.preventDefault();};
-      list.ondrop=(e)=>{
-        e.preventDefault();
-        const id=e.dataTransfer.getData('text/plain');
-        const from=e.dataTransfer.getData('from-col');
-        if(!id||!from) return;
-        if(from===col.id) return;
-        const card=findCard(id);
-        if(!card) return;
-        state.columns[from]=(state.columns[from]||[]).filter(x=>x.id!==id);
-        (state.columns[col.id] ||= []).unshift(card);
-        state.updatedAt=new Date().toISOString();
-        save(state); render();
-      };
-
-      for(const card of (state.columns[col.id]||[])){
-        const li=document.createElement('li');
-        li.className='card';
-        li.draggable=true;
-        li.dataset.id=card.id;
-        li.ondragstart=(e)=>{
-          li.classList.add('dragging');
-          e.dataTransfer.setData('text/plain', card.id);
-          e.dataTransfer.setData('from-col', col.id);
-        };
-        li.ondragend=()=>li.classList.remove('dragging');
-
-        const row=document.createElement('div');
-        row.className='row';
-        const text=document.createElement('div');
-        text.className='text';
-        text.textContent=card.text;
-
-        const actions=document.createElement('div');
-        actions.className='actions';
-        const edit=document.createElement('button'); edit.className='icon'; edit.textContent='Edit';
-        const del=document.createElement('button'); del.className='icon'; del.textContent='Del';
-        actions.append(edit, del);
-
-        const doEdit=()=>{
-          const next=prompt('Edit item', card.text);
+    function renderProjects(){
+      const el=document.getElementById('projList');
+      el.innerHTML='';
+      for(const p of (state.projects||[])){
+        const div=document.createElement('div');
+        div.className='item';
+        div.innerHTML = `
+          <div class="top">
+            <div class="txt">${escapeHtml(p.name)}</div>
+            <div class="actions">
+              <button class="icon">Edit</button>
+              <button class="icon">Del</button>
+            </div>
+          </div>
+          <div class="meta"><span class="pill">${escapeHtml(p.status||'active')}</span><span>Created: ${fmtTime(p.createdAt||now())}</span></div>
+        `;
+        const [edit,del]=div.querySelectorAll('button');
+        edit.onclick=()=>{
+          const next=prompt('Edit project', p.name);
           if(next===null) return;
           const t=next.trim();
           if(!t) return;
-          card.text=t;
-          state.updatedAt=new Date().toISOString();
+          p.name=t; save(state); render();
+        };
+        del.onclick=()=>{
+          if(!confirm('Delete project?')) return;
+          state.projects = (state.projects||[]).filter(x=>x.id!==p.id);
           save(state); render();
         };
-        text.onclick=doEdit;
-        edit.onclick=doEdit;
+        el.appendChild(div);
+      }
+    }
+
+    function renderApprovals(){
+      const el=document.getElementById('apprList');
+      el.innerHTML='';
+      for(const a of (state.approvals||[])){
+        const div=document.createElement('div');
+        div.className='item';
+        div.innerHTML = `
+          <div class="top">
+            <div class="txt">${escapeHtml(a.text)}</div>
+            <div class="actions">
+              <button class="icon">Done</button>
+              <button class="icon">Del</button>
+            </div>
+          </div>
+          <div class="meta"><span class="pill" style="border-color: var(--warn);">open</span><span>${fmtTime(a.createdAt||now())}</span></div>
+        `;
+        const [done,del]=div.querySelectorAll('button');
+        done.onclick=()=>{
+          state.approvals = (state.approvals||[]).filter(x=>x.id!==a.id);
+          save(state); render();
+        };
         del.onclick=()=>{
-          if(!confirm('Delete this item?')) return;
-          state.columns[col.id]=(state.columns[col.id]||[]).filter(x=>x.id!==card.id);
-          state.updatedAt=new Date().toISOString();
+          state.approvals = (state.approvals||[]).filter(x=>x.id!==a.id);
+          save(state); render();
+        };
+        el.appendChild(div);
+      }
+    }
+
+    function renderBoard(){
+      const board=document.getElementById('board');
+      board.innerHTML='';
+
+      for(const col of COLUMNS){
+        const section=document.createElement('section');
+        section.className='col';
+
+        const head=document.createElement('div');
+        head.className='colhead';
+        head.innerHTML = `
+          <div class="meta">
+            <span class="badge" style="background:${col.color}"></span>
+            <strong style="font-size:12px;">${col.title}</strong>
+            <span class="pill">${(state.columns[col.id]||[]).length}</span>
+          </div>
+          <div class="row" style="gap:6px; flex-wrap:nowrap;">
+            <input class="input" data-col="${col.id}" placeholder="Add…" style="min-width:0; width: 140px;" />
+            <button class="icon" data-add="${col.id}">＋</button>
+          </div>
+        `;
+
+        const list=document.createElement('ul');
+        list.className='list';
+        list.dataset.col=col.id;
+
+        list.ondragover=(e)=>{e.preventDefault();};
+        list.ondrop=(e)=>{
+          e.preventDefault();
+          const id=e.dataTransfer.getData('text/plain');
+          const from=e.dataTransfer.getData('from-col');
+          if(!id||!from) return;
+          if(from===col.id) return;
+          const card=findCard(id);
+          if(!card) return;
+          state.columns[from]=(state.columns[from]||[]).filter(x=>x.id!==id);
+          (state.columns[col.id] ||= []).unshift(card);
+          card.movedAt = now();
           save(state); render();
         };
 
-        row.append(text, actions);
-        const meta=document.createElement('div');
-        meta.className='meta';
-        meta.innerHTML=`<span class="pill" style="border-color:${col.color};">${col.title}</span><span>Created: ${fmt(card.createdAt)}</span>`;
-        li.append(row, meta);
-        list.appendChild(li);
+        for(const card of (state.columns[col.id]||[])){
+          const li=document.createElement('li');
+          li.className='item';
+          li.draggable=true;
+          li.dataset.id=card.id;
+          li.ondragstart=(e)=>{
+            li.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', card.id);
+            e.dataTransfer.setData('from-col', col.id);
+          };
+          li.ondragend=()=>li.classList.remove('dragging');
+
+          li.innerHTML = `
+            <div class="top">
+              <div class="txt">${escapeHtml(card.text)}</div>
+              <div class="actions">
+                <button class="icon">Edit</button>
+                <button class="icon">Del</button>
+              </div>
+            </div>
+            <div class="meta">
+              <span class="pill" style="border-color:${col.color};">${col.title}</span>
+              <span>Created: ${fmtTime(card.createdAt)}</span>
+            </div>
+          `;
+
+          const [edit,del]=li.querySelectorAll('button');
+          edit.onclick=()=>{
+            const next=prompt('Edit task', card.text);
+            if(next===null) return;
+            const t=next.trim();
+            if(!t) return;
+            card.text=t; save(state); render();
+          };
+          del.onclick=()=>{
+            if(!confirm('Delete task?')) return;
+            state.columns[col.id]=(state.columns[col.id]||[]).filter(x=>x.id!==card.id);
+            save(state); render();
+          };
+
+          list.appendChild(li);
+        }
+
+        section.append(head, list);
+        board.appendChild(section);
       }
 
-      section.append(head, list);
-      board.appendChild(section);
+      document.querySelectorAll('[data-add]').forEach(btn=>{
+        btn.onclick=()=>{
+          const colId=btn.getAttribute('data-add');
+          const input=document.querySelector(`input[data-col="${colId}"]`);
+          const t=(input.value||'').trim();
+          if(!t) return;
+          (state.columns[colId] ||= []).unshift({id:uid(), text:t, createdAt: now(), movedAt: now()});
+          input.value='';
+          save(state); render();
+        };
+      });
+      document.querySelectorAll('input[data-col]').forEach(inp=>{
+        inp.addEventListener('keydown', (e)=>{ if(e.key==='Enter') inp.parentElement.querySelector('button')?.click(); });
+      });
     }
-  }
 
-  document.getElementById('resetBtn').onclick=()=>{
-    if(!confirm('Reset the board?')) return;
-    state=defaultState(); save(state); render();
-  };
-  document.getElementById('exportBtn').onclick=()=>{
-    const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a'); a.href=url; a.download='ironfist-kanban.json'; a.click();
-    setTimeout(()=>URL.revokeObjectURL(url), 1000);
-  };
+    function findCard(id){
+      for(const c of COLUMNS){
+        const arr=state.columns[c.id]||[];
+        const found=arr.find(x=>x.id===id);
+        if(found) return found;
+      }
+      return null;
+    }
 
-  save(state);
-  render();
-</script>
+    function escapeHtml(s){
+      return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    function render(){
+      document.getElementById('ironfistFocus').value = state.ironfistFocus || '';
+      updateStatusPills();
+      renderBoard();
+      renderProjects();
+      renderApprovals();
+      renderSpark();
+    }
+
+    document.getElementById('saveFocus').onclick=()=>{
+      state.ironfistFocus = (document.getElementById('ironfistFocus').value||'').trim();
+      save(state); render();
+    };
+
+    document.getElementById('addProj').onclick=()=>{
+      const t=(document.getElementById('projInput').value||'').trim();
+      if(!t) return;
+      (state.projects ||= []).unshift({id:uid(), name:t, createdAt: now(), status:'active'});
+      document.getElementById('projInput').value='';
+      save(state); render();
+    };
+
+    document.getElementById('addAppr').onclick=()=>{
+      const t=(document.getElementById('apprInput').value||'').trim();
+      if(!t) return;
+      (state.approvals ||= []).unshift({id:uid(), text:t, createdAt: now(), status:'open'});
+      document.getElementById('apprInput').value='';
+      save(state); render();
+    };
+
+    document.getElementById('resetBtn').onclick=()=>{
+      if(!confirm('Reset everything on this device?')) return;
+      state=defaultState();
+      save(state);
+      render();
+    };
+
+    document.getElementById('exportBtn').onclick=()=>{
+      const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url;
+      a.download='ironfist-hq-export.json';
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 1200);
+    };
+
+    document.getElementById('importBtn').onclick=async()=>{
+      const pick=document.createElement('input');
+      pick.type='file';
+      pick.accept='application/json';
+      pick.onchange=async()=>{
+        const f=pick.files?.[0];
+        if(!f) return;
+        const txt=await f.text();
+        try{
+          const obj=JSON.parse(txt);
+          if(!obj || !obj.columns) throw new Error('Not an HQ export');
+          state=obj;
+          save(state);
+          render();
+          alert('Imported.');
+        }catch(e){
+          alert('Import failed.');
+        }
+      };
+      pick.click();
+    };
+
+    save(state);
+    render();
+  </script>
 </body>
 </html>
