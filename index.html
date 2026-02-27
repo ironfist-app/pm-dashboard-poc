@@ -810,16 +810,62 @@
         `;
         const [edit,del]=div.querySelectorAll('button');
         edit.onclick=()=>{
-          const next=prompt('Edit project', p.name);
-          if(next===null) return;
-          const t=next.trim();
-          if(!t) return;
-          p.name=t; save(state); renderAll();
+          openSheet({
+            title:'Edit project',
+            sub: 'Projects',
+            text: p.name,
+            placeholder:'Project name…',
+            actions:[
+              { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+              { label:'Save', onClick: (val)=>{
+                  const t=(val||'').trim();
+                  if(!t) return;
+                  p.name=t;
+                  save(state);
+                  closeSheet();
+                  toast('Saved.');
+                  renderAll();
+                }
+              },
+              { kind:'danger', label:'Delete', onClick: ()=>{
+                  openSheet({
+                    title:'Delete project?',
+                    sub:'This cannot be undone.',
+                    text: p.name,
+                    actions:[
+                      { kind:'secondary', label:'Keep', onClick: ()=>{ closeSheet(); edit.onclick(); } },
+                      { kind:'danger', label:'Delete', onClick: ()=>{
+                          state.projects=(state.projects||[]).filter(x=>x.id!==p.id);
+                          save(state);
+                          closeSheet();
+                          toast('Deleted.');
+                          renderAll();
+                        }
+                      }
+                    ]
+                  });
+                }
+              }
+            ]
+          });
         };
         del.onclick=()=>{
-          if(!confirm('Delete project?')) return;
-          state.projects=(state.projects||[]).filter(x=>x.id!==p.id);
-          save(state); renderAll();
+          openSheet({
+            title:'Delete project?',
+            sub:'Projects',
+            text: p.name,
+            actions:[
+              { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+              { kind:'danger', label:'Delete', onClick: ()=>{
+                  state.projects=(state.projects||[]).filter(x=>x.id!==p.id);
+                  save(state);
+                  closeSheet();
+                  toast('Deleted.');
+                  renderAll();
+                }
+              }
+            ]
+          });
         };
         el.appendChild(div);
       }
@@ -843,14 +889,87 @@
           <div class="meta"><span>open</span><span>${fmtTime(a.createdAt||now())}</span></div>
         `;
         const [done,del]=div.querySelectorAll('button');
+        const editApproval=()=>{
+          openSheet({
+            title:'Edit approval',
+            sub:'Approvals',
+            text: a.text,
+            placeholder:'Approval item…',
+            actions:[
+              { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+              { label:'Save', onClick: (val)=>{
+                  const t=(val||'').trim();
+                  if(!t) return;
+                  a.text=t;
+                  save(state);
+                  closeSheet();
+                  toast('Saved.');
+                  renderAll();
+                }
+              },
+              { kind:'danger', label:'Delete', onClick: ()=>{
+                  openSheet({
+                    title:'Delete approval?',
+                    sub:'This cannot be undone.',
+                    text: a.text,
+                    actions:[
+                      { kind:'secondary', label:'Keep', onClick: ()=>{ closeSheet(); editApproval(); } },
+                      { kind:'danger', label:'Delete', onClick: ()=>{
+                          state.approvals=(state.approvals||[]).filter(x=>x.id!==a.id);
+                          save(state);
+                          closeSheet();
+                          toast('Deleted.');
+                          renderAll();
+                        }
+                      }
+                    ]
+                  });
+                }
+              }
+            ]
+          });
+        };
+
         done.onclick=()=>{
-          state.approvals=(state.approvals||[]).filter(x=>x.id!==a.id);
-          save(state); renderAll();
+          openSheet({
+            title:'Mark approved?',
+            sub:'Moves it out of Approvals.',
+            text: a.text,
+            actions:[
+              { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+              { label:'Done', onClick: ()=>{
+                  state.approvals=(state.approvals||[]).filter(x=>x.id!==a.id);
+                  save(state);
+                  closeSheet();
+                  toast('Done.');
+                  renderAll();
+                }
+              }
+            ]
+          });
         };
         del.onclick=()=>{
-          state.approvals=(state.approvals||[]).filter(x=>x.id!==a.id);
-          save(state); renderAll();
+          openSheet({
+            title:'Delete approval?',
+            sub:'Approvals',
+            text: a.text,
+            actions:[
+              { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+              { kind:'danger', label:'Delete', onClick: ()=>{
+                  state.approvals=(state.approvals||[]).filter(x=>x.id!==a.id);
+                  save(state);
+                  closeSheet();
+                  toast('Deleted.');
+                  renderAll();
+                }
+              }
+            ]
+          });
         };
+
+        // Tap text to edit (fast)
+        div.querySelector('.txt')?.addEventListener('click', editApproval);
+
         el.appendChild(div);
       }
     }
@@ -966,8 +1085,8 @@
           const obj=JSON.parse(txt);
           if(!obj || !obj.columns) throw new Error('bad');
           state=obj; save(state); renderAll();
-          alert('Imported.');
-        }catch(e){ alert('Import failed.'); }
+          toast('Imported.');
+        }catch(e){ toast('Import failed.'); }
       };
       pick.click();
     };
@@ -996,15 +1115,45 @@
           ]
         });
       } else if(route==='projects'){
-        const t=prompt('New project');
-        if(!t) return;
-        (state.projects ||= []).unshift({id:uid(), name:t.trim(), createdAt: now(), status:'active'});
-        save(state); renderAll();
+        openSheet({
+          title:'New project',
+          sub:'Projects',
+          text:'',
+          placeholder:'Project name…',
+          actions:[
+            { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+            { label:'Add', onClick: (val)=>{
+                const t=(val||'').trim();
+                if(!t) return;
+                (state.projects ||= []).unshift({id:uid(), name:t, createdAt: now(), status:'active'});
+                save(state);
+                closeSheet();
+                toast('Added.');
+                renderAll();
+              }
+            }
+          ]
+        });
       } else if(route==='approvals'){
-        const t=prompt('New approval');
-        if(!t) return;
-        (state.approvals ||= []).unshift({id:uid(), text:t.trim(), createdAt: now(), status:'open'});
-        save(state); renderAll();
+        openSheet({
+          title:'New approval',
+          sub:'Approvals',
+          text:'',
+          placeholder:'Approval item…',
+          actions:[
+            { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+            { label:'Add', onClick: (val)=>{
+                const t=(val||'').trim();
+                if(!t) return;
+                (state.approvals ||= []).unshift({id:uid(), text:t, createdAt: now(), status:'open'});
+                save(state);
+                closeSheet();
+                toast('Added.');
+                renderAll();
+              }
+            }
+          ]
+        });
       }
     };
 
