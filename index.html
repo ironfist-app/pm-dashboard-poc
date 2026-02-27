@@ -235,7 +235,81 @@
     .hint{ margin-top:10px; color:var(--muted); font-size:11px; }
 
     .footer{ margin-top:12px; color:var(--muted); font-size:11px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
-  
+
+    /* Bottom sheet (in-app editor) */
+    .overlay{
+      position:fixed; inset:0; z-index:80;
+      display:none;
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(8px);
+    }
+    .overlay.show{ display:block; }
+
+    .sheet{
+      position:fixed; left:0; right:0; bottom:0; z-index:90;
+      transform: translateY(110%);
+      transition: transform .22s var(--ease2);
+      padding: 0 14px calc(14px + env(safe-area-inset-bottom));
+    }
+    .sheet.show{ transform: translateY(0); }
+
+    .sheet .panel{
+      max-width: 980px;
+      margin: 0 auto;
+      border:1px solid var(--stroke2);
+      background: linear-gradient(180deg, rgba(10,10,16,.92), rgba(6,6,10,.86));
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    .sheet .head{
+      padding: 12px 12px 10px;
+      border-bottom: 1px solid var(--stroke2);
+      display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+      background: rgba(255,255,255,.02);
+    }
+    .sheet .head strong{ font-size:13px; }
+    .sheet .head span{ font-size:11px; color:var(--muted); }
+
+    .sheet .body{ padding: 12px; display:flex; flex-direction:column; gap:10px; }
+
+    .textarea{
+      width:100%;
+      border:1px solid var(--stroke2);
+      background: rgba(0,0,0,.30);
+      color: var(--text);
+      border-radius: 16px;
+      padding: 12px;
+      outline:none;
+      font-size: 13px;
+      line-height:1.25;
+      min-height: 92px;
+      resize: none;
+    }
+
+    .sheet .actions{ display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
+    .btn.danger{ border-color: rgba(251,113,133,.35); background: rgba(251,113,133,.10); }
+
+    .toast{
+      position: fixed;
+      left: 50%;
+      bottom: calc(16px + env(safe-area-inset-bottom));
+      transform: translateX(-50%) translateY(14px);
+      opacity:0;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border:1px solid var(--stroke);
+      background: rgba(0,0,0,.55);
+      color: var(--text);
+      font-size: 12px;
+      box-shadow: var(--shadow2);
+      transition: transform .18s var(--ease2), opacity .18s var(--ease2);
+      z-index: 95;
+      pointer-events:none;
+    }
+    .toast.show{ opacity:1; transform: translateX(-50%) translateY(0); }
+
     @media (prefers-reduced-motion: reduce){
       *{ animation:none !important; transition:none !important; }
     }
@@ -388,6 +462,25 @@
 
   <button class="fab" id="fab">+</button>
 
+  <!-- In-app editor (bottom sheet) -->
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+  <div class="sheet" id="sheet" aria-hidden="true">
+    <div class="panel">
+      <div class="head">
+        <div class="title">
+          <strong id="sheetTitle">Edit</strong>
+          <span id="sheetSub">—</span>
+        </div>
+        <button class="btn secondary" id="sheetClose">Close</button>
+      </div>
+      <div class="body">
+        <textarea class="textarea" id="sheetText" placeholder=""></textarea>
+        <div class="actions" id="sheetActions"></div>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast">Saved.</div>
+
   <script>
     function flashTap(el){
       try{
@@ -470,6 +563,66 @@
       return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
     }
 
+    // Bottom sheet (replaces prompt/confirm for iPhone usability)
+    const sheetEl = document.getElementById('sheet');
+    const overlayEl = document.getElementById('overlay');
+    const sheetTitleEl = document.getElementById('sheetTitle');
+    const sheetSubEl = document.getElementById('sheetSub');
+    const sheetTextEl = document.getElementById('sheetText');
+    const sheetActionsEl = document.getElementById('sheetActions');
+    const sheetCloseEl = document.getElementById('sheetClose');
+    const toastEl = document.getElementById('toast');
+
+    let sheetOnClose = null;
+
+    function toast(msg){
+      try{
+        toastEl.textContent = msg || 'Saved.';
+        toastEl.classList.add('show');
+        setTimeout(()=>toastEl.classList.remove('show'), 1100);
+      }catch(e){}
+    }
+
+    function openSheet({ title='Edit', sub='Tap Save when done.', text='', placeholder='', actions=[] }={}){
+      sheetTitleEl.textContent = title;
+      sheetSubEl.textContent = sub;
+      sheetTextEl.value = text || '';
+      sheetTextEl.placeholder = placeholder || '';
+
+      sheetActionsEl.innerHTML='';
+      for(const a of actions){
+        const b=document.createElement('button');
+        b.className = 'btn ' + (a.kind||'');
+        b.textContent = a.label || 'OK';
+        b.onclick = ()=>{ try{ a.onClick?.(sheetTextEl.value); }catch(e){} };
+        sheetActionsEl.appendChild(b);
+      }
+
+      overlayEl.classList.add('show');
+      sheetEl.classList.add('show');
+      overlayEl.setAttribute('aria-hidden','false');
+      sheetEl.setAttribute('aria-hidden','false');
+      try{ document.body.style.overflow='hidden'; }catch(e){}
+
+      requestAnimationFrame(()=>{
+        try{ sheetTextEl.focus(); sheetTextEl.setSelectionRange(sheetTextEl.value.length, sheetTextEl.value.length); }catch(e){}
+      });
+    }
+
+    function closeSheet(){
+      overlayEl.classList.remove('show');
+      sheetEl.classList.remove('show');
+      overlayEl.setAttribute('aria-hidden','true');
+      sheetEl.setAttribute('aria-hidden','true');
+      try{ document.body.style.overflow=''; }catch(e){}
+      try{ sheetOnClose?.(); }catch(e){}
+      sheetOnClose=null;
+    }
+
+    overlayEl.addEventListener('click', closeSheet);
+    sheetCloseEl.addEventListener('click', closeSheet);
+    window.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && sheetEl.classList.contains('show')) closeSheet(); });
+
     function findCard(id){
       for(const c of COLUMNS){
         const arr=state.columns[c.id]||[];
@@ -546,25 +699,92 @@
 
           const [edit,del]=li.querySelectorAll('button');
           edit.onclick=()=>{
-            const next=prompt('Edit task', card.text);
-            if(next===null) return;
-            const t=next.trim();
-            if(!t) return;
-            card.text=t; save(state); renderAll();
+            openSheet({
+              title: 'Edit task',
+              sub: col.title,
+              text: card.text,
+              placeholder: 'Task…',
+              actions: [
+                { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+                { label:'Save', onClick: (val)=>{
+                    const t=(val||'').trim();
+                    if(!t) return;
+                    card.text=t;
+                    save(state);
+                    closeSheet();
+                    toast('Saved.');
+                    renderAll();
+                  }
+                },
+                { kind:'danger', label:'Delete', onClick: ()=>{
+                    openSheet({
+                      title:'Delete task?',
+                      sub:'This cannot be undone.',
+                      text: card.text,
+                      placeholder:'',
+                      actions:[
+                        { kind:'secondary', label:'Keep', onClick: ()=>{
+                            // reopen editor
+                            closeSheet();
+                            edit.onclick();
+                          }
+                        },
+                        { kind:'danger', label:'Delete', onClick: ()=>{
+                            state.columns[col.id]=(state.columns[col.id]||[]).filter(x=>x.id!==card.id);
+                            save(state);
+                            closeSheet();
+                            toast('Deleted.');
+                            renderAll();
+                          }
+                        }
+                      ]
+                    });
+                  }
+                }
+              ]
+            });
           };
           del.onclick=()=>{
-            if(!confirm('Delete task?')) return;
-            state.columns[col.id]=(state.columns[col.id]||[]).filter(x=>x.id!==card.id);
-            save(state); renderAll();
+            openSheet({
+              title:'Delete task?',
+              sub: col.title,
+              text: card.text,
+              actions:[
+                { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+                { kind:'danger', label:'Delete', onClick: ()=>{
+                    state.columns[col.id]=(state.columns[col.id]||[]).filter(x=>x.id!==card.id);
+                    save(state);
+                    closeSheet();
+                    toast('Deleted.');
+                    renderAll();
+                  }
+                }
+              ]
+            });
           };
           list.appendChild(li);
         }
 
         section.querySelector('[data-add]')?.addEventListener('click', ()=>{
-          const t=prompt('New task');
-          if(!t) return;
-          (state.columns[col.id] ||= []).unshift({id:uid(), text:t.trim(), createdAt: now(), movedAt: now()});
-          save(state); renderAll();
+          openSheet({
+            title:'New task',
+            sub: col.title,
+            text:'',
+            placeholder:'Task…',
+            actions:[
+              { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+              { label:'Add', onClick: (val)=>{
+                  const t=(val||'').trim();
+                  if(!t) return;
+                  (state.columns[col.id] ||= []).unshift({id:uid(), text:t, createdAt: now(), movedAt: now()});
+                  save(state);
+                  closeSheet();
+                  toast('Added.');
+                  renderAll();
+                }
+              }
+            ]
+          });
         });
 
         board.appendChild(section);
@@ -756,10 +976,25 @@
     document.getElementById('fab').onclick=()=>{
       const route=getRoute();
       if(route==='tasks'){
-        const t=prompt('New task');
-        if(!t) return;
-        (state.columns.todo ||= []).unshift({id:uid(), text:t.trim(), createdAt: now(), movedAt: now()});
-        save(state); renderAll();
+        openSheet({
+          title:'New task',
+          sub:'To Do',
+          text:'',
+          placeholder:'Task…',
+          actions:[
+            { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+            { label:'Add', onClick: (val)=>{
+                const t=(val||'').trim();
+                if(!t) return;
+                (state.columns.todo ||= []).unshift({id:uid(), text:t, createdAt: now(), movedAt: now()});
+                save(state);
+                closeSheet();
+                toast('Added.');
+                renderAll();
+              }
+            }
+          ]
+        });
       } else if(route==='projects'){
         const t=prompt('New project');
         if(!t) return;
