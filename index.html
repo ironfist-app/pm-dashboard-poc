@@ -1222,6 +1222,17 @@
                   renderAll();
                 }
               },
+              { kind:'secondary', label:'To Task', onClick: ()=>{
+                  const t=(a.text||'').trim();
+                  if(!t) return;
+                  (state.columns.todo ||= []).unshift({id:uid(), text:t, createdAt: now(), movedAt: now(), projectId: null, fromApprovalId: a.id});
+                  state.approvals=(state.approvals||[]).filter(x=>x.id!==a.id);
+                  save(state);
+                  closeSheet();
+                  toast('Moved to Tasks.');
+                  renderAll();
+                }
+              },
               { kind:'danger', label:'Delete', onClick: ()=>{
                   openSheet({
                     title:'Delete approval?',
