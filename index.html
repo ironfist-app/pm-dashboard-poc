@@ -21,6 +21,8 @@
       --warn:#fbbf24;
       --bad:#fb7185;
       --shadow: 0 22px 55px rgba(0,0,0,.65);
+      --ease: cubic-bezier(.2,.8,.2,1);
+      --ease2: cubic-bezier(.16,1,.3,1);
       --shadow2: 0 10px 25px rgba(0,0,0,.55);
       --r:22px;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
@@ -68,6 +70,7 @@
     .btn{
       appearance:none;
       border:1px solid var(--stroke);
+      transition: transform .12s var(--ease), border-color .12s var(--ease), background .12s var(--ease);
       background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.03));
       color:var(--text);
       padding:9px 10px;
@@ -78,17 +81,17 @@
       box-shadow: var(--shadow2);
     }
     .btn.secondary{ background:transparent; box-shadow:none; }
-    .btn:active{ transform: translateY(1px); }
+    .btn:active{ transform: translateY(1px) scale(.99); }
 
     .wrap{ max-width: 980px; margin: 0 auto; padding: 16px 14px 34px; }
 
     /* Screens */
     .screen{
       display:none;
-      animation: fadeUp .22s ease both;
+      animation: fadeUp .28s var(--ease2) both;
     }
     .screen.active{ display:block; }
-    @keyframes fadeUp{ from{ opacity:0; transform: translateY(6px);} to{opacity:1; transform: translateY(0);} }
+    @keyframes fadeUp{ from{ opacity:0; transform: translateY(10px); filter: blur(2px);} to{opacity:1; transform: translateY(0); filter: blur(0);} }
 
     /* Home tiles */
     .hero{
@@ -116,12 +119,12 @@
       padding: 14px;
       box-shadow: var(--shadow);
       cursor:pointer;
-      transition: transform .12s ease, border-color .12s ease;
+      transition: transform .18s var(--ease), border-color .18s var(--ease), box-shadow .18s var(--ease);
       position:relative;
       overflow:hidden;
     }
-    .tile:active{ transform: translateY(1px); }
-    .tile:hover{ border-color: rgba(255,255,255,.16); }
+    .tile:active{ transform: translateY(1px) scale(.99); }
+    .tile:hover{ border-color: rgba(255,255,255,.18); box-shadow: 0 26px 70px rgba(0,0,0,.70); }
 
     .tile .kicker{ font-size:11px; color:var(--muted); letter-spacing:.2px; }
     .tile .name{ margin-top:6px; font-weight:900; font-size:14px; }
@@ -183,6 +186,7 @@
 
     .icon{
       border:1px solid var(--stroke2);
+      transition: transform .12s var(--ease), border-color .12s var(--ease), background .12s var(--ease);
       background: transparent;
       color: var(--text);
       border-radius: 12px;
@@ -190,6 +194,8 @@
       font-size:12px;
       cursor:pointer;
     }
+    .icon:active{ transform: translateY(1px) scale(.99); }
+    .icon:hover{ border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.04); }
 
     /* Board */
     .board{ display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; }
@@ -220,12 +226,19 @@
       display:none;
       align-items:center;
       justify-content:center;
+    
+      transition: transform .16s var(--ease), filter .16s var(--ease);
     }
     .fab.show{ display:flex; }
+    .fab:active{ transform: translateY(1px) scale(.99); }
 
     .hint{ margin-top:10px; color:var(--muted); font-size:11px; }
 
     .footer{ margin-top:12px; color:var(--muted); font-size:11px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  
+    @media (prefers-reduced-motion: reduce){
+      *{ animation:none !important; transition:none !important; }
+    }
   </style>
 </head>
 <body>
@@ -375,6 +388,13 @@
   <button class="fab" id="fab">+</button>
 
   <script>
+    function flashTap(el){
+      try{
+        el.style.filter='brightness(1.08)';
+        setTimeout(()=>{el.style.filter='';}, 130);
+      }catch(e){}
+    }
+
     const STORAGE_KEY='ironfist.hq.noir.v0_3';
 
     const COLUMNS=[
@@ -658,7 +678,7 @@
 
     // nav tiles
     document.querySelectorAll('[data-nav]').forEach(t=>{
-      t.addEventListener('click', ()=>setRoute(t.getAttribute('data-nav')));
+      t.addEventListener('click', ()=>{ flashTap(t); setRoute(t.getAttribute('data-nav')); });
     });
 
     // toolbar
