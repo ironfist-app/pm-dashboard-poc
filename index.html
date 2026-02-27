@@ -452,8 +452,10 @@
           <div class="footer">
             <span class="pill" id="done7">Done(7d): 0</span>
             <span class="pill" id="created7">Created(7d): 0</span>
+            <span class="pill" id="cycle7">Cycle(7d): —</span>
+            <span class="pill" id="wipAge">WIP age: —</span>
           </div>
-          <div class="hint">Next: cycle time + bottleneck heatmap.</div>
+          <div class="hint">Cycle time is created → moved to Done. WIP age is oldest non-done task.</div>
         </div>
       </div>
     </section>
@@ -505,6 +507,14 @@
     const save=(s)=>{ s.updatedAt=new Date().toISOString(); localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); };
 
     const fmtTime=(ms)=>{ try{ return new Date(ms).toLocaleString(undefined,{month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){ return '';} };
+
+    function fmtDur(ms){
+      const m=Math.max(0, ms||0);
+      const min=60000, hr=3600000, day=86400000;
+      if(m < hr) return Math.round(m/min)+'m';
+      if(m < day) return (m/hr).toFixed(1).replace(/\.0$/,'')+'h';
+      return (m/day).toFixed(1).replace(/\.0$/,'')+'d';
+    }
 
     function defaultState(){
       return {
@@ -979,7 +989,9 @@
       if(!svg) return;
       const dayMs=86400000;
       const start=now()-6*dayMs;
-      const bins=Array.from({length:7},(_,i)=>({created:0,done:0}));
+      const bins=Array.from({length:7},()=>({created:0,done:0}));
+
+      // 7d counts
       for(const colId of Object.keys(state.columns||{})){
         for(const card of (state.columns[colId]||[])){
           const ci=Math.floor((card.createdAt-start)/dayMs);
@@ -990,6 +1002,32 @@
           }
         }
       }
+
+      // Cycle time (7d) for cards moved to Done within window
+      const cycle=[];
+      for(const card of (state.columns.done||[])){
+        if(!card?.movedAt || !card?.createdAt) continue;
+        if(card.movedAt < (now()-7*dayMs)) continue;
+        cycle.push(card.movedAt - card.createdAt);
+      }
+      cycle.sort((a,b)=>a-b);
+      const avg = cycle.length ? cycle.reduce((a,b)=>a+b,0)/cycle.length : 0;
+      const med = cycle.length ? cycle[Math.floor(cycle.length/2)] : 0;
+      document.getElementById('cycle7').textContent = cycle.length
+        ? `Cycle(7d): avg ${fmtDur(avg)} · med ${fmtDur(med)}`
+        : 'Cycle(7d): —';
+
+      // WIP age = oldest task not in Done
+      const wip=[];
+      for(const colId of Object.keys(state.columns||{})){
+        if(colId==='done') continue;
+        for(const card of (state.columns[colId]||[])){
+          if(card?.createdAt) wip.push(now()-card.createdAt);
+        }
+      }
+      const oldest = wip.length ? Math.max(...wip) : 0;
+      document.getElementById('wipAge').textContent = wip.length ? `WIP age: ${fmtDur(oldest)}` : 'WIP age: —';
+
       const max=Math.max(1,...bins.map(b=>Math.max(b.created,b.done)));
       const W=300,H=90,pad=10;
       const pts=(arr,key)=>arr.map((b,i)=>{
@@ -1004,6 +1042,7 @@
       const createdSum=bins.reduce((a,b)=>a+b.created,0);
       document.getElementById('done7').textContent=`Done(7d): ${doneSum}`;
       document.getElementById('created7').textContent=`Created(7d): ${createdSum}`;
+
       svg.innerHTML = `
         <defs>
           <linearGradient id="gradA" x1="0" x2="1">
