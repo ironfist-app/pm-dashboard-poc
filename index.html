@@ -1886,10 +1886,13 @@
       if(!snaps.length){
         openSheet({
           title:'Snapshots',
-          sub:'No auto snapshots yet. (They appear after a handful of changes.)',
+          sub:'No snapshots yet. Save one now (local-only), or they’ll appear automatically after a handful of changes.',
           text:'',
           placeholder:'',
-          actions:[{ kind:'secondary', label:'Close', onClick: ()=>closeSheet() }]
+          actions:[
+            { kind:'secondary', label:'Close', onClick: ()=>closeSheet() },
+            { kind:'secondary', label:'Save snapshot', onClick: ()=>{ saveManualSnapshot(); openSnapshotsSheet(); } }
+          ]
         });
         return;
       }
@@ -1919,9 +1922,10 @@
           ? 'Preview: —'
           : `Tasks: ${st.tasks} · Projects: ${st.projects}`;
 
+        const snapLabel=String(s?.label||'Snapshot');
         openSheet({
           title:'Snapshot',
-          sub:`${when} · ${line}`,
+          sub:`${when} · ${snapLabel} · ${line}`,
           text:'',
           placeholder:'',
           actions:[
@@ -1971,11 +1975,12 @@
 
       openSheet({
         title:'Snapshots',
-        sub:'Auto snapshots are stored only on this device. Restoring replaces current local data.',
+        sub:'Snapshots are stored only on this device. Restoring replaces current local data.',
         text:'',
         placeholder:'',
         actions:[
           { kind:'secondary', label:'Close', onClick: ()=>closeSheet() },
+          { kind:'secondary', label:'Save snapshot', onClick: ()=>{ saveManualSnapshot(); openSnapshotsSheet(); } },
           ...snaps.map((s)=>{
             const when=fmt(s.at);
             const st=snapStats(s);
@@ -1983,10 +1988,12 @@
               ? 'Preview: —'
               : `Tasks: ${st.tasks} · Projects: ${st.projects}`;
 
+            const snapLabel=String(s?.label||'Snapshot');
+
             return {
               kind:'secondary',
               label: when,
-              subLabel: sub,
+              subLabel: `${snapLabel} · ${sub}`,
               onClick: ()=>openSnapDetail(s)
             };
           })
