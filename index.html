@@ -308,6 +308,7 @@
       z-index: 95;
       pointer-events:none;
     }
+    body.nav-on .toast{ bottom: calc(92px + env(safe-area-inset-bottom)); }
     .toast.show{ opacity:1; transform: translateX(-50%) translateY(0); }
 
     /* Bottom nav (iPhone-friendly) */
@@ -586,7 +587,51 @@
     const now=()=>Date.now();
 
     const load=()=>{ try{ const r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):null; }catch(e){ return null; } };
-    const save=(s)=>{ s.updatedAt=new Date().toISOString(); localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); };
+
+    // Backup nudge (subtle): after N state changes since last Export, remind to back up.
+    const LAST_BACKUP_KEY = 'ironfist.noir.lastBackupAt';
+    const CHANGES_SINCE_BACKUP_KEY = 'ironfist.noir.changesSinceBackup';
+    const LAST_NUDGE_KEY = 'ironfist.noir.lastBackupNudgeAt';
+    const BACKUP_NUDGE_CHANGES = 14;
+    const BACKUP_NUDGE_COOLDOWN_MS = 6*60*60*1000;
+
+    function getChangesSinceBackup(){
+      try{ return Number(localStorage.getItem(CHANGES_SINCE_BACKUP_KEY)||'0')||0; }catch(e){ return 0; }
+    }
+
+    function setChangesSinceBackup(n){
+      try{ localStorage.setItem(CHANGES_SINCE_BACKUP_KEY, String(Math.max(0, n||0))); }catch(e){}
+    }
+
+    function shouldNudgeBackup(){
+      try{
+        const changes=getChangesSinceBackup();
+        if(changes < BACKUP_NUDGE_CHANGES) return false;
+        const last=Number((localStorage.getItem(LAST_NUDGE_KEY)||'0').trim())||0;
+        if(last && (Date.now()-last) < BACKUP_NUDGE_COOLDOWN_MS) return false;
+
+        const r=routeInfo().route;
+        if(r==='home') return false; // keep home uncluttered
+        if(sheetEl?.classList?.contains('show')) return false; // don’t interrupt editing
+        return true;
+      }catch(e){ return false; }
+    }
+
+    function nudgeBackup(){
+      try{ localStorage.setItem(LAST_NUDGE_KEY, String(Date.now())); }catch(e){}
+      toast('Backup suggested — tap Export.');
+    }
+
+    const save=(s, opts={})=>{
+      const track = opts.trackChange !== false;
+      s.updatedAt=new Date().toISOString();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+
+      if(track){
+        setChangesSinceBackup(getChangesSinceBackup()+1);
+        if(shouldNudgeBackup()) nudgeBackup();
+      }
+    };
 
     const fmtTime=(ms)=>{ try{ return new Date(ms).toLocaleString(undefined,{month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){ return '';} };
 
@@ -696,6 +741,7 @@
       const bottomnav=document.getElementById('bottomnav');
       const showNav = route!=='home';
       bottomnav?.classList.toggle('show', showNav);
+      document.body.classList.toggle('nav-on', showNav);
 
       // Active tab highlight (project route maps to Projects)
       const tabRoute = route==='project' ? 'projects' : route;
@@ -1601,10 +1647,10 @@
     };
 
     // Export / Import / Reset (local-first safety net)
-    const LAST_BACKUP_KEY = 'ironfist.noir.lastBackupAt';
 
     function markBackupNow(){
       try{ localStorage.setItem(LAST_BACKUP_KEY, String(Date.now())); }catch(e){}
+      setChangesSinceBackup(0);
     }
 
     function lastBackupLabel(){
@@ -1657,7 +1703,7 @@
       if(!obj || !obj.columns) throw new Error('bad');
       state=obj;
       migrate();
-      save(state);
+      save(state,{trackChange:false});
       renderAll();
     }
 
@@ -1730,7 +1776,7 @@
                   { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
                   { kind:'danger', label:'Reset', onClick: ()=>{
                       state=defaultState();
-                      save(state);
+                      save(state,{trackChange:false});
                       closeSheet();
                       toast('Reset.');
                       renderAll();
@@ -1848,7 +1894,7 @@
 
     // init
     bootRoute();
-    save(state);
+    save(state,{trackChange:false});
     renderAll();
   </script>
 </body>
