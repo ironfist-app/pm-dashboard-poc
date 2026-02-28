@@ -67,6 +67,16 @@
       box-shadow: var(--shadow2);
     }
 
+    .subhint{
+      font-size:11px;
+      color: rgba(169,177,201,.92);
+      letter-spacing:.1px;
+      padding: 0 2px;
+      user-select:none;
+      white-space:nowrap;
+    }
+    .subhint.warn{ color: rgba(251,191,36,.92); }
+
     .btn{
       appearance:none;
       border:1px solid var(--stroke);
@@ -372,6 +382,7 @@
     <div class="toolbar">
       <button class="btn secondary" id="backBtn" style="display:none">← Back</button>
       <span class="pill" id="routePill">Home</span>
+      <span class="subhint" id="backupHint" style="display:none">Backup: —</span>
       <button class="btn secondary" id="exportBtn">Export</button>
       <button class="btn secondary" id="importBtn">Import</button>
       <button class="btn" id="homeBtn">Home</button>
@@ -643,6 +654,45 @@
       return (m/day).toFixed(1).replace(/\.0$/,'')+'d';
     }
 
+    function getLastBackupMs(){
+      try{
+        const v=(localStorage.getItem(LAST_BACKUP_KEY)||'').trim();
+        if(!v) return null;
+        const ms=Number(v);
+        return Number.isFinite(ms) ? ms : null;
+      }catch(e){ return null; }
+    }
+
+    function renderBackupHint(route){
+      const el=document.getElementById('backupHint');
+      if(!el) return;
+
+      // Keep Home header clean.
+      if(route==='home'){
+        el.style.display='none';
+        return;
+      }
+
+      const changes=getChangesSinceBackup();
+      const lastMs=getLastBackupMs();
+
+      let txt='Backup: —';
+      let warn=false;
+      if(changes >= BACKUP_NUDGE_CHANGES){
+        txt='Backup: suggested';
+        warn=true;
+      }else if(lastMs){
+        txt='Backup: ' + fmtDur(Date.now()-lastMs) + ' ago';
+      }else{
+        txt='Backup: never';
+        warn = changes>0;
+      }
+
+      el.textContent = txt;
+      el.classList.toggle('warn', !!warn);
+      el.style.display='inline';
+    }
+
     function defaultState(){
       return {
         updatedAt: new Date().toISOString(),
@@ -756,6 +806,8 @@
 
       const subtitle=document.getElementById('subtitle');
       subtitle.textContent = route==='home' ? 'Noir prototype · local-first' : 'Noir · '+route;
+
+      renderBackupHint(route);
     }
 
     // Bottom sheet (replaces prompt/confirm for iPhone usability)
@@ -1651,6 +1703,7 @@
     function markBackupNow(){
       try{ localStorage.setItem(LAST_BACKUP_KEY, String(Date.now())); }catch(e){}
       setChangesSinceBackup(0);
+      renderBackupHint(routeInfo().route);
     }
 
     function lastBackupLabel(){
