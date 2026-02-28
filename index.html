@@ -403,6 +403,10 @@
           <span class="pill" id="countsPill">—</span>
         </div>
         <div class="body">
+          <div class="row" style="margin-bottom:12px;">
+            <input class="input" id="taskFilter" placeholder="Filter tasks…" />
+            <button class="btn secondary" id="clearTaskFilter">Clear</button>
+          </div>
           <div class="board" id="board"></div>
         </div>
       </div>
@@ -551,6 +555,7 @@
     }
 
     let state = load() || defaultState();
+    let taskFilter = '';
 
     function migrate(){
       state.columns ||= {todo:[],ongoing:[],done:[]};
@@ -590,6 +595,14 @@
     }
 
     function normalize(s){ return String(s||'').trim().toLowerCase(); }
+
+    function matchesTaskFilter(card){
+      const f=normalize(taskFilter);
+      if(!f) return true;
+      const pn = card?.projectId ? (getProjectNameById(card.projectId) || '') : '';
+      const hay = normalize((card?.text||'') + ' ' + pn);
+      return hay.includes(f);
+    }
 
     function getProjectById(id){ return (state.projects||[]).find(p=>p.id===id) || null; }
     function getProjectNameById(id){ return getProjectById(id)?.name || ''; }
@@ -742,16 +755,36 @@
       if(!board) return;
       board.innerHTML='';
 
+      const filterEl=document.getElementById('taskFilter');
+      const clearEl=document.getElementById('clearTaskFilter');
+      if(filterEl && document.activeElement!==filterEl) filterEl.value = taskFilter || '';
+      if(clearEl) clearEl.style.display = normalize(taskFilter) ? 'inline-flex' : 'none';
+
       const total = Object.values(state.columns||{}).reduce((a,arr)=>a+(arr?.length||0),0);
       const done = (state.columns.done||[]).length;
-      document.getElementById('countsPill').textContent = `Total: ${total} · Done: ${done}`;
+
+      const filteredTotal = Object.keys(state.columns||{}).reduce((acc,colId)=>{
+        const arr = state.columns[colId] || [];
+        return acc + arr.filter(matchesTaskFilter).length;
+      }, 0);
+      const filteredDone = (state.columns.done||[]).filter(matchesTaskFilter).length;
+
+      const f=normalize(taskFilter);
+      document.getElementById('countsPill').textContent = f
+        ? `Showing: ${filteredTotal} · Done: ${filteredDone}`
+        : `Total: ${total} · Done: ${done}`;
 
       for(const col of COLUMNS){
         const section=document.createElement('section');
         section.className='col';
+
+        const rawCount = (state.columns[col.id]||[]).length;
+        const filteredCount = (state.columns[col.id]||[]).filter(matchesTaskFilter).length;
+        const showCount = normalize(taskFilter) ? filteredCount : rawCount;
+
         section.innerHTML = `
           <div class="colhead">
-            <div class="meta"><span class="badge" style="background:${col.color}"></span><strong>${col.title}</strong><span class="pill">${(state.columns[col.id]||[]).length}</span></div>
+            <div class="meta"><span class="badge" style="background:${col.color}"></span><strong>${col.title}</strong><span class="pill">${showCount}</span></div>
             <button class="icon" data-add="${col.id}">Add</button>
           </div>
           <ul class="cards" data-col="${col.id}"></ul>
@@ -774,7 +807,7 @@
           renderAll();
         };
 
-        for(const card of (state.columns[col.id]||[])){
+        for(const card of (state.columns[col.id]||[]).filter(matchesTaskFilter)){
           const li=document.createElement('li');
           li.className='item';
           li.draggable=true;
@@ -1403,6 +1436,30 @@
       state.ironfistFocus=(document.getElementById('ironfistFocus').value||'').trim();
       save(state); renderAll();
     };
+
+    // Tasks: quick filter (ephemeral UI state)
+    const taskFilterEl = document.getElementById('taskFilter');
+    const clearTaskFilterEl = document.getElementById('clearTaskFilter');
+    if(taskFilterEl){
+      taskFilterEl.addEventListener('input', ()=>{
+        taskFilter = taskFilterEl.value || '';
+        renderBoard();
+      });
+      taskFilterEl.addEventListener('keydown', (e)=>{
+        if(e.key==='Escape'){
+          taskFilter='';
+          taskFilterEl.value='';
+          renderBoard();
+        }
+      });
+    }
+    if(clearTaskFilterEl){
+      clearTaskFilterEl.onclick=()=>{
+        taskFilter='';
+        if(taskFilterEl) taskFilterEl.value='';
+        renderBoard();
+      };
+    }
 
     document.getElementById('addProj').onclick=()=>{
       const t=(document.getElementById('projInput').value||'').trim();
