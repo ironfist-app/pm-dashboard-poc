@@ -831,9 +831,29 @@
 
     function normalize(s){ return String(s||'').trim().toLowerCase(); }
 
-    function matchesTaskFilter(card){
+    function ymd(ms){
+      try{
+        const d=new Date(ms);
+        const y=d.getFullYear();
+        const m=String(d.getMonth()+1).padStart(2,'0');
+        const da=String(d.getDate()).padStart(2,'0');
+        return `${y}-${m}-${da}`;
+      }catch(e){ return ''; }
+    }
+
+    function matchesTaskFilter(card, colId){
       const f=normalize(taskFilter);
       if(!f) return true;
+
+      // Special filter: day:YYYY-MM-DD (local)
+      if(f.startsWith('day:')){
+        const day = f.slice(4).trim();
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(day)) return true;
+        const created = card?.createdAt ? ymd(card.createdAt) : '';
+        const moved = card?.movedAt ? ymd(card.movedAt) : '';
+        return created===day || (colId==='done' && moved===day);
+      }
+
       const pn = card?.projectId ? (getProjectNameById(card.projectId) || '') : '';
       const hay = normalize((card?.text||'') + ' ' + pn);
       return hay.includes(f);
@@ -912,11 +932,14 @@
       }catch(e){}
     }
 
-    function openSheet({ title='Edit', sub='Tap Save when done.', text='', placeholder='', actions=[] }={}){
+    function openSheet({ title='Edit', sub='Tap Save when done.', text='', placeholder='', actions=[], showText=true, readOnly=false }={}){
       sheetTitleEl.textContent = title;
       sheetSubEl.textContent = sub;
+
       sheetTextEl.value = text || '';
       sheetTextEl.placeholder = placeholder || '';
+      sheetTextEl.readOnly = !!readOnly;
+      sheetTextEl.style.display = showText ? 'block' : 'none';
 
       sheetActionsEl.innerHTML='';
       for(const a of actions){
@@ -945,9 +968,11 @@
       sheetEl.setAttribute('aria-hidden','false');
       try{ document.body.style.overflow='hidden'; }catch(e){}
 
-      requestAnimationFrame(()=>{
-        try{ sheetTextEl.focus(); sheetTextEl.setSelectionRange(sheetTextEl.value.length, sheetTextEl.value.length); }catch(e){}
-      });
+      if(showText && !readOnly){
+        requestAnimationFrame(()=>{
+          try{ sheetTextEl.focus(); sheetTextEl.setSelectionRange(sheetTextEl.value.length, sheetTextEl.value.length); }catch(e){}
+        });
+      }
     }
 
     function closeSheet(){
@@ -1026,9 +1051,9 @@
 
       const filteredTotal = Object.keys(state.columns||{}).reduce((acc,colId)=>{
         const arr = state.columns[colId] || [];
-        return acc + arr.filter(matchesTaskFilter).length;
+        return acc + arr.filter(card=>matchesTaskFilter(card, colId)).length;
       }, 0);
-      const filteredDone = (state.columns.done||[]).filter(matchesTaskFilter).length;
+      const filteredDone = (state.columns.done||[]).filter(card=>matchesTaskFilter(card, 'done')).length;
 
       const f=normalize(taskFilter);
       document.getElementById('countsPill').textContent = f
@@ -1040,7 +1065,7 @@
         section.className='col';
 
         const rawCount = (state.columns[col.id]||[]).length;
-        const filteredCount = (state.columns[col.id]||[]).filter(matchesTaskFilter).length;
+        const filteredCount = (state.columns[col.id]||[]).filter(card=>matchesTaskFilter(card, col.id)).length;
         const showCount = normalize(taskFilter) ? filteredCount : rawCount;
 
         section.innerHTML = `
@@ -1068,7 +1093,7 @@
           renderAll();
         };
 
-        const visibleCards = (state.columns[col.id]||[]).filter(matchesTaskFilter);
+        const visibleCards = (state.columns[col.id]||[]).filter(card=>matchesTaskFilter(card, col.id));
         for(const card of visibleCards){
           const li=document.createElement('li');
           li.className='item';
@@ -1712,13 +1737,42 @@
         ${pD.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.2" fill="rgba(45,212,191,.95)"/>`).join('')}
         ${pD.map((p,i)=>{
           const tip = `${dayLabel(i)} · Created ${bins[i].created} · Done ${bins[i].done}`;
-          return `<circle cx="${p[0]}" cy="${p[1]}" r="14" fill="transparent" data-tip="${escapeHtml(tip)}" style="cursor:pointer"/>`;
+          return `<circle cx="${p[0]}" cy="${p[1]}" r="14" fill="transparent" data-tip="${escapeHtml(tip)}" data-i="${i}" style="cursor:pointer"/>`;
         }).join('')}
       `;
 
       // iPhone-friendly: tap points to see day details.
-      svg.querySelectorAll('circle[data-tip]').forEach(c=>{
-        c.addEventListener('click', ()=>toast(c.getAttribute('data-tip')||''));
+      svg.querySelectorAll('circle[data-tip][data-i]').forEach(c=>{
+        c.addEventListener('click', ()=>{
+          const i = Number(c.getAttribute('data-i')||'');
+          if(!Number.isFinite(i) || i<0 || i>6){ toast(c.getAttribute('data-tip')||''); return; }
+
+          const dayMs=86400000;
+          const dayStartMs = start + i*dayMs;
+          const day = ymd(dayStartMs);
+          const created = bins[i].created;
+          const done = bins[i].done;
+
+          openSheet({
+            title: 'Day detail',
+            sub: `${dayLabel(i)}`,
+            text: `Created: ${created}\nDone: ${done}`,
+            showText: true,
+            readOnly: true,
+            actions: [
+              { kind:'secondary', label:'Close', onClick: ()=>closeSheet() },
+              { label:'View tasks', subLabel:`Filter: day:${day}`, onClick: ()=>{
+                  taskFilter = `day:${day}`;
+                  const filterEl=document.getElementById('taskFilter');
+                  if(filterEl) filterEl.value = taskFilter;
+                  closeSheet();
+                  setRoute('tasks');
+                  renderAll();
+                }
+              }
+            ]
+          });
+        });
       });
     }
 
