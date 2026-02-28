@@ -606,6 +606,50 @@
     const BACKUP_NUDGE_CHANGES = 14;
     const BACKUP_NUDGE_COOLDOWN_MS = 6*60*60*1000;
 
+    // Auto snapshots (local-only): a tiny safety net if you forget to Export.
+    // Keep small (max 3) to avoid storage bloat.
+    const SNAPSHOTS_KEY = 'ironfist.noir.autoSnapshots';
+    const LAST_SNAPSHOT_KEY = 'ironfist.noir.lastAutoSnapshotAt';
+    const AUTO_SNAPSHOT_MAX = 3;
+    const AUTO_SNAPSHOT_COOLDOWN_MS = 30*60*1000;
+
+    function getSnapshots(){
+      try{
+        const raw=(localStorage.getItem(SNAPSHOTS_KEY)||'').trim();
+        const arr=raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr : [];
+      }catch(e){ return []; }
+    }
+
+    function setSnapshots(arr){
+      try{
+        const clean=(arr||[]).filter(Boolean).slice(0, AUTO_SNAPSHOT_MAX);
+        localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(clean));
+      }catch(e){}
+    }
+
+    function maybeAutoSnapshot(changes){
+      try{
+        const c=Number(changes)||0;
+        if(c<=0) return;
+        if(c % BACKUP_NUDGE_CHANGES !== 0) return;
+        const last=Number((localStorage.getItem(LAST_SNAPSHOT_KEY)||'0').trim())||0;
+        if(last && (Date.now()-last) < AUTO_SNAPSHOT_COOLDOWN_MS) return;
+
+        const snap={
+          id: uid(),
+          at: Date.now(),
+          label: 'Auto snapshot',
+          data: JSON.stringify(state)
+        };
+
+        const cur=getSnapshots();
+        cur.unshift(snap);
+        setSnapshots(cur);
+        localStorage.setItem(LAST_SNAPSHOT_KEY, String(Date.now()));
+      }catch(e){}
+    }
+
     function getChangesSinceBackup(){
       try{ return Number(localStorage.getItem(CHANGES_SINCE_BACKUP_KEY)||'0')||0; }catch(e){ return 0; }
     }
@@ -639,7 +683,9 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 
       if(track){
-        setChangesSinceBackup(getChangesSinceBackup()+1);
+        const nextChanges=getChangesSinceBackup()+1;
+        setChangesSinceBackup(nextChanges);
+        maybeAutoSnapshot(nextChanges);
         if(shouldNudgeBackup()) nudgeBackup();
       }
     };
@@ -1776,6 +1822,58 @@
       pick.click();
     }
 
+    function openSnapshotsSheet(){
+      const snaps=getSnapshots();
+      if(!snaps.length){
+        openSheet({
+          title:'Snapshots',
+          sub:'No auto snapshots yet. (They appear after a handful of changes.)',
+          text:'',
+          placeholder:'',
+          actions:[{ kind:'secondary', label:'Close', onClick: ()=>closeSheet() }]
+        });
+        return;
+      }
+
+      const fmt=(ms)=>{
+        try{
+          const d=new Date(ms);
+          const f=new Intl.DateTimeFormat(undefined,{weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
+          return f.format(d);
+        }catch(e){ return '—'; }
+      };
+
+      openSheet({
+        title:'Snapshots',
+        sub:'Auto snapshots are stored only on this device. Restoring replaces current local data.',
+        text:'',
+        placeholder:'',
+        actions:[
+          { kind:'secondary', label:'Close', onClick: ()=>closeSheet() },
+          ...snaps.map((s)=>({
+            kind:'secondary',
+            label:`Restore · ${fmt(s.at)}`,
+            onClick: ()=>{
+              openSheet({
+                title:'Restore snapshot?',
+                sub:`Restore from ${fmt(s.at)}. This will overwrite your current local data.`,
+                text:'',
+                placeholder:'',
+                actions:[
+                  { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+                  { kind:'danger', label:'Restore', onClick: ()=>{
+                      try{ importFromText(String(s.data||'')); closeSheet(); toast('Restored.'); }
+                      catch(e){ toast('Restore failed.'); }
+                    }
+                  }
+                ]
+              });
+            }
+          }))
+        ]
+      });
+    }
+
     document.getElementById('exportBtn').onclick=()=>{
       const txt=JSON.stringify(state,null,2);
       openSheet({
@@ -1814,6 +1912,7 @@
         actions:[
           { kind:'secondary', label:'Close', onClick: ()=>closeSheet() },
           { kind:'secondary', label:'Import file', onClick: ()=>importFromFile() },
+          { kind:'secondary', label:'Snapshots', onClick: ()=>openSnapshotsSheet() },
           { label:'Import paste', onClick: (val)=>{
               try{ importFromText(val||''); closeSheet(); toast('Imported.'); }
               catch(e){ toast('Import failed.'); }
