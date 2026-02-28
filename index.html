@@ -628,6 +628,22 @@
       }catch(e){}
     }
 
+    function saveSnapshotNow(label){
+      try{
+        const snap={
+          id: uid(),
+          at: Date.now(),
+          label: String(label||'Snapshot'),
+          data: JSON.stringify(state)
+        };
+
+        const cur=getSnapshots();
+        cur.unshift(snap);
+        setSnapshots(cur);
+        return snap;
+      }catch(e){ return null; }
+    }
+
     function maybeAutoSnapshot(changes){
       try{
         const c=Number(changes)||0;
@@ -636,18 +652,17 @@
         const last=Number((localStorage.getItem(LAST_SNAPSHOT_KEY)||'0').trim())||0;
         if(last && (Date.now()-last) < AUTO_SNAPSHOT_COOLDOWN_MS) return;
 
-        const snap={
-          id: uid(),
-          at: Date.now(),
-          label: 'Auto snapshot',
-          data: JSON.stringify(state)
-        };
-
-        const cur=getSnapshots();
-        cur.unshift(snap);
-        setSnapshots(cur);
+        const snap=saveSnapshotNow('Auto snapshot');
+        if(!snap) return;
         localStorage.setItem(LAST_SNAPSHOT_KEY, String(Date.now()));
       }catch(e){}
+    }
+
+    function saveManualSnapshot(){
+      // Manual snapshots are still local-only; keep them small + capped.
+      const snap=saveSnapshotNow('Manual snapshot');
+      if(snap) toast('Snapshot saved.');
+      return snap;
     }
 
     function getChangesSinceBackup(){
@@ -724,9 +739,18 @@
 
       let txt='Backup: —';
       let warn=false;
+
       if(changes >= BACKUP_NUDGE_CHANGES){
-        txt='Backup: suggested';
+        // Only when we’re actively suggesting a backup, surface snapshot context.
         warn=true;
+        const snaps=getSnapshots();
+        const lastSnapMs = snaps?.[0]?.at ? Number(snaps[0].at) : null;
+        const snapCount = Array.isArray(snaps) ? snaps.length : 0;
+        const snapAge = lastSnapMs ? fmtDur(Date.now()-lastSnapMs) : null;
+
+        txt = 'Backup: suggested';
+        txt += ' · Snaps:' + snapCount;
+        if(snapAge) txt += ' · ' + snapAge;
       }else if(lastMs){
         txt='Backup: ' + fmtDur(Date.now()-lastMs) + ' ago';
       }else{
@@ -1883,6 +1907,10 @@
         placeholder:'',
         actions:[
           { kind:'secondary', label:'Close', onClick: ()=>closeSheet() },
+          { kind:'secondary', label:'Save snapshot', onClick: ()=>{
+              saveManualSnapshot();
+            }
+          },
           { kind:'secondary', label:'Download', onClick: ()=>{
               downloadJson('ironfist-hq-noir.json', txt);
               markBackupNow();
