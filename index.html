@@ -525,7 +525,11 @@
           </div>
           <div class="subrow" id="dayFilterRow" style="display:none;">
             <div class="subhint" id="dayFilterHint">Day filter active: —</div>
-            <button class="subaction" id="clearDayFilter" type="button">Clear day</button>
+            <div class="row" style="gap:6px; justify-content:flex-end;">
+              <button class="subaction mini" id="prevDay" type="button" aria-label="Previous day">Prev</button>
+              <button class="subaction mini" id="nextDay" type="button" aria-label="Next day">Next</button>
+              <button class="subaction" id="clearDayFilter" type="button">Clear day</button>
+            </div>
           </div>
           <div class="board" id="board"></div>
         </div>
@@ -905,6 +909,15 @@
       return { day, pretty };
     }
 
+    function shiftDayYmd(day, deltaDays){
+      try{
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(String(day||''))) return '';
+        const d=new Date(day+'T12:00:00'); // noon local to dodge DST edge cases
+        const ms = d.getTime() + (deltaDays*86400000);
+        return ymd(ms);
+      }catch(e){ return ''; }
+    }
+
     function matchesTaskFilter(card, colId){
       const f=normalize(taskFilter);
       if(!f) return true;
@@ -1149,13 +1162,22 @@
       // Day filter UX hint
       const dayRow=document.getElementById('dayFilterRow');
       const dayHint=document.getElementById('dayFilterHint');
+      const prevDayEl=document.getElementById('prevDay');
+      const nextDayEl=document.getElementById('nextDay');
       const info=parseDayFilter(taskFilter);
       if(dayRow){
         if(info){
           dayRow.style.display='flex';
           if(dayHint) dayHint.textContent = `Day filter active: ${info.pretty}`;
+
+          const prev = shiftDayYmd(info.day, -1);
+          const next = shiftDayYmd(info.day, 1);
+          if(prevDayEl) prevDayEl.setAttribute('data-day-jump', prev);
+          if(nextDayEl) nextDayEl.setAttribute('data-day-jump', next);
         } else {
           dayRow.style.display='none';
+          if(prevDayEl) prevDayEl.removeAttribute('data-day-jump');
+          if(nextDayEl) nextDayEl.removeAttribute('data-day-jump');
         }
       }
 
@@ -1933,6 +1955,8 @@
     // Tasks: quick filter (ephemeral UI state)
     const taskFilterEl = document.getElementById('taskFilter');
     const clearTaskFilterEl = document.getElementById('clearTaskFilter');
+    const prevDayEl = document.getElementById('prevDay');
+    const nextDayEl = document.getElementById('nextDay');
     const clearDayFilterEl = document.getElementById('clearDayFilter');
     if(taskFilterEl){
       taskFilterEl.addEventListener('input', ()=>{
@@ -1954,6 +1978,21 @@
         renderBoard();
       };
     }
+
+    function jumpDayFromButton(btn){
+      const day = btn?.getAttribute('data-day-jump') || '';
+      if(!day) return;
+      taskFilter = `day:${day}`;
+      if(taskFilterEl){
+        taskFilterEl.value = taskFilter;
+        try{ taskFilterEl.focus(); taskFilterEl.setSelectionRange(taskFilter.length, taskFilter.length); }catch(e){}
+      }
+      renderBoard();
+    }
+
+    if(prevDayEl){ prevDayEl.onclick=()=>jumpDayFromButton(prevDayEl); }
+    if(nextDayEl){ nextDayEl.onclick=()=>jumpDayFromButton(nextDayEl); }
+
     if(clearDayFilterEl){
       clearDayFilterEl.onclick=()=>{
         if(!parseDayFilter(taskFilter)) return;
