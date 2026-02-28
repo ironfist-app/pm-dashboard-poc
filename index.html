@@ -310,6 +310,53 @@
     }
     .toast.show{ opacity:1; transform: translateX(-50%) translateY(0); }
 
+    /* Bottom nav (iPhone-friendly) */
+    .bottomnav{
+      position: fixed;
+      left: 14px;
+      right: 14px;
+      bottom: calc(12px + env(safe-area-inset-bottom));
+      z-index: 70;
+      display:none;
+    }
+    .bottomnav.show{ display:block; }
+
+    .bottomnav .bar{
+      max-width: 980px;
+      margin: 0 auto;
+      display:grid;
+      grid-template-columns: repeat(5, minmax(0,1fr));
+      gap: 8px;
+      padding: 8px;
+      border-radius: 22px;
+      border: 1px solid var(--stroke2);
+      background: rgba(5,5,8,.62);
+      backdrop-filter: blur(12px);
+      box-shadow: var(--shadow);
+    }
+
+    .tabbtn{
+      appearance:none;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      padding: 10px 8px;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 900;
+      cursor:pointer;
+      transition: transform .12s var(--ease), background .12s var(--ease), border-color .12s var(--ease), color .12s var(--ease);
+    }
+    .tabbtn:active{ transform: translateY(1px) scale(.99); }
+    .tabbtn.active{
+      color: var(--text);
+      border-color: rgba(255,255,255,.14);
+      background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.03));
+    }
+
+    /* Give content room when bottom nav is visible */
+    .wrap{ padding-bottom: 110px; }
+
     @media (prefers-reduced-motion: reduce){
       *{ animation:none !important; transition:none !important; }
     }
@@ -486,6 +533,17 @@
 
   </div>
 
+  <!-- Bottom navigation (appears off Home) -->
+  <nav class="bottomnav" id="bottomnav" aria-label="Primary">
+    <div class="bar">
+      <button class="tabbtn" data-tab="home">Home</button>
+      <button class="tabbtn" data-tab="mission">Mission</button>
+      <button class="tabbtn" data-tab="tasks">Tasks</button>
+      <button class="tabbtn" data-tab="projects">Projects</button>
+      <button class="tabbtn" data-tab="approvals">Approvals</button>
+    </div>
+  </nav>
+
   <button class="fab" id="fab">+</button>
 
   <!-- In-app editor (bottom sheet) -->
@@ -633,6 +691,17 @@
 
       // Store last route (don’t reopen inside a specific project by default)
       try{ localStorage.setItem(ROUTE_KEY, route==='project' ? 'projects' : route); }catch(e){}
+
+      // Bottom nav (hide on uncluttered Home)
+      const bottomnav=document.getElementById('bottomnav');
+      const showNav = route!=='home';
+      bottomnav?.classList.toggle('show', showNav);
+
+      // Active tab highlight (project route maps to Projects)
+      const tabRoute = route==='project' ? 'projects' : route;
+      document.querySelectorAll('.tabbtn[data-tab]').forEach(b=>{
+        b.classList.toggle('active', b.getAttribute('data-tab')===tabRoute);
+      });
 
       // FAB only on content screens
       const fab=document.getElementById('fab');
@@ -1463,6 +1532,16 @@
     // nav tiles
     document.querySelectorAll('[data-nav]').forEach(t=>{
       t.addEventListener('click', ()=>{ flashTap(t); setRoute(t.getAttribute('data-nav')); });
+    });
+
+    // bottom nav tabs
+    document.querySelectorAll('.tabbtn[data-tab]').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const r=b.getAttribute('data-tab');
+        if(!r) return;
+        flashTap(b);
+        setRoute(r);
+      });
     });
 
     // toolbar
