@@ -341,7 +341,7 @@
       max-width: 980px;
       margin: 0 auto;
       display:grid;
-      grid-template-columns: repeat(5, minmax(0,1fr));
+      grid-template-columns: repeat(6, minmax(0,1fr));
       gap: 8px;
       padding: 8px;
       border-radius: 22px;
@@ -368,6 +368,12 @@
       color: var(--text);
       border-color: rgba(255,255,255,.14);
       background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.03));
+    }
+
+    /* iPhone: 6 tabs fits better with slightly tighter spacing */
+    @media (max-width: 420px){
+      .bottomnav .bar{ gap: 6px; padding: 7px; }
+      .tabbtn{ padding: 9px 6px; font-size: 11px; }
     }
 
     /* Give content room when bottom nav is visible */
@@ -558,6 +564,7 @@
       <button class="tabbtn" data-tab="tasks">Tasks</button>
       <button class="tabbtn" data-tab="projects">Projects</button>
       <button class="tabbtn" data-tab="approvals">Approvals</button>
+      <button class="tabbtn" data-tab="trends">Trends</button>
     </div>
   </nav>
 
