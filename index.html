@@ -77,6 +77,31 @@
     }
     .subhint.warn{ color: rgba(251,191,36,.92); }
 
+    .subrow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-top:-6px;
+      margin-bottom:10px;
+    }
+    .subaction{
+      appearance:none;
+      border:1px solid var(--stroke2);
+      background: rgba(255,255,255,.02);
+      color: rgba(169,177,201,.95);
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.1px;
+      padding:6px 10px;
+      border-radius: 999px;
+      cursor:pointer;
+      transition: transform .12s var(--ease), border-color .12s var(--ease), background .12s var(--ease);
+      box-shadow:none;
+      white-space:nowrap;
+    }
+    .subaction:active{ transform: translateY(1px) scale(.99); }
+
     .btn{
       appearance:none;
       border:1px solid var(--stroke);
@@ -477,6 +502,10 @@
             <input class="input" id="taskFilter" placeholder="Filter tasks…" />
             <button class="btn secondary" id="clearTaskFilter">Clear</button>
           </div>
+          <div class="subrow" id="dayFilterRow" style="display:none;">
+            <div class="subhint" id="dayFilterHint">Day filter active: —</div>
+            <button class="subaction" id="clearDayFilter" type="button">Clear day</button>
+          </div>
           <div class="board" id="board"></div>
         </div>
       </div>
@@ -841,17 +870,31 @@
       }catch(e){ return ''; }
     }
 
+    function parseDayFilter(raw){
+      const f=normalize(raw);
+      if(!f.startsWith('day:')) return null;
+      const day = f.slice(4).trim();
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+      let pretty = day;
+      try{
+        // Force local day label.
+        const d=new Date(day+'T00:00:00');
+        pretty = d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric', year:'numeric'});
+      }catch(e){}
+      return { day, pretty };
+    }
+
     function matchesTaskFilter(card, colId){
       const f=normalize(taskFilter);
       if(!f) return true;
 
       // Special filter: day:YYYY-MM-DD (local)
       if(f.startsWith('day:')){
-        const day = f.slice(4).trim();
-        if(!/^\d{4}-\d{2}-\d{2}$/.test(day)) return true;
+        const info = parseDayFilter(taskFilter);
+        if(!info) return true;
         const created = card?.createdAt ? ymd(card.createdAt) : '';
         const moved = card?.movedAt ? ymd(card.movedAt) : '';
-        return created===day || (colId==='done' && moved===day);
+        return created===info.day || (colId==='done' && moved===info.day);
       }
 
       const pn = card?.projectId ? (getProjectNameById(card.projectId) || '') : '';
@@ -1045,6 +1088,19 @@
       const clearEl=document.getElementById('clearTaskFilter');
       if(filterEl && document.activeElement!==filterEl) filterEl.value = taskFilter || '';
       if(clearEl) clearEl.style.display = normalize(taskFilter) ? 'inline-flex' : 'none';
+
+      // Day filter UX hint
+      const dayRow=document.getElementById('dayFilterRow');
+      const dayHint=document.getElementById('dayFilterHint');
+      const info=parseDayFilter(taskFilter);
+      if(dayRow){
+        if(info){
+          dayRow.style.display='flex';
+          if(dayHint) dayHint.textContent = `Day filter active: ${info.pretty}`;
+        } else {
+          dayRow.style.display='none';
+        }
+      }
 
       const total = Object.values(state.columns||{}).reduce((a,arr)=>a+(arr?.length||0),0);
       const done = (state.columns.done||[]).length;
@@ -1820,6 +1876,7 @@
     // Tasks: quick filter (ephemeral UI state)
     const taskFilterEl = document.getElementById('taskFilter');
     const clearTaskFilterEl = document.getElementById('clearTaskFilter');
+    const clearDayFilterEl = document.getElementById('clearDayFilter');
     if(taskFilterEl){
       taskFilterEl.addEventListener('input', ()=>{
         taskFilter = taskFilterEl.value || '';
@@ -1838,6 +1895,15 @@
         taskFilter='';
         if(taskFilterEl) taskFilterEl.value='';
         renderBoard();
+      };
+    }
+    if(clearDayFilterEl){
+      clearDayFilterEl.onclick=()=>{
+        if(!parseDayFilter(taskFilter)) return;
+        taskFilter='';
+        if(taskFilterEl) taskFilterEl.value='';
+        renderBoard();
+        try{ taskFilterEl?.focus(); }catch(e){}
       };
     }
 
