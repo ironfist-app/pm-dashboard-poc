@@ -1521,17 +1521,50 @@
       save(state); renderAll();
     };
 
-    // Export / Import
-    document.getElementById('exportBtn').onclick=()=>{
-      const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+    // Export / Import / Reset (local-first safety net)
+    function downloadJson(filename, text){
+      const blob=new Blob([text],{type:'application/json'});
       const url=URL.createObjectURL(blob);
       const a=document.createElement('a');
-      a.href=url; a.download='ironfist-hq-noir.json';
+      a.href=url; a.download=filename;
       a.click();
       setTimeout(()=>URL.revokeObjectURL(url), 1200);
-    };
+    }
 
-    document.getElementById('importBtn').onclick=()=>{
+    async function copyToClipboard(text){
+      try{
+        if(navigator.clipboard?.writeText){
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      }catch(e){}
+
+      // Fallback for older iOS/Safari
+      try{
+        const ta=document.createElement('textarea');
+        ta.value=text;
+        ta.style.position='fixed';
+        ta.style.left='-9999px';
+        ta.style.top='0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok=document.execCommand('copy');
+        ta.remove();
+        return !!ok;
+      }catch(e){ return false; }
+    }
+
+    function importFromText(txt){
+      const obj=JSON.parse(txt);
+      if(!obj || !obj.columns) throw new Error('bad');
+      state=obj;
+      migrate();
+      save(state);
+      renderAll();
+    }
+
+    async function importFromFile(){
       const pick=document.createElement('input');
       pick.type='file'; pick.accept='application/json';
       pick.onchange=async()=>{
@@ -1539,16 +1572,65 @@
         if(!f) return;
         try{
           const txt=await f.text();
-          const obj=JSON.parse(txt);
-          if(!obj || !obj.columns) throw new Error('bad');
-          state=obj;
-          migrate();
-          save(state);
-          renderAll();
+          importFromText(txt);
+          closeSheet();
           toast('Imported.');
         }catch(e){ toast('Import failed.'); }
       };
       pick.click();
+    }
+
+    document.getElementById('exportBtn').onclick=()=>{
+      const txt=JSON.stringify(state,null,2);
+      openSheet({
+        title:'Export',
+        sub:'Copy JSON as a quick backup, or download a file.',
+        text: txt,
+        placeholder:'',
+        actions:[
+          { kind:'secondary', label:'Close', onClick: ()=>closeSheet() },
+          { kind:'secondary', label:'Download', onClick: ()=>{ downloadJson('ironfist-hq-noir.json', txt); toast('Downloaded.'); } },
+          { label:'Copy JSON', onClick: async()=>{ const ok=await copyToClipboard(txt); toast(ok ? 'Copied.' : 'Copy failed.'); } },
+        ]
+      });
+    };
+
+    document.getElementById('importBtn').onclick=()=>{
+      openSheet({
+        title:'Import / Reset',
+        sub:'Paste JSON to import, or import a file. Reset replaces your local data.',
+        text:'',
+        placeholder:'Paste JSON here…',
+        actions:[
+          { kind:'secondary', label:'Close', onClick: ()=>closeSheet() },
+          { kind:'secondary', label:'Import file', onClick: ()=>importFromFile() },
+          { label:'Import paste', onClick: (val)=>{
+              try{ importFromText(val||''); closeSheet(); toast('Imported.'); }
+              catch(e){ toast('Import failed.'); }
+            }
+          },
+          { kind:'danger', label:'Reset demo data', onClick: ()=>{
+              openSheet({
+                title:'Reset demo data?',
+                sub:'This will overwrite your current on-device data.',
+                text:'',
+                placeholder:'',
+                actions:[
+                  { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
+                  { kind:'danger', label:'Reset', onClick: ()=>{
+                      state=defaultState();
+                      save(state);
+                      closeSheet();
+                      toast('Reset.');
+                      renderAll();
+                    }
+                  }
+                ]
+              });
+            }
+          }
+        ]
+      });
     };
 
     // FAB
