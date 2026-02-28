@@ -898,7 +898,15 @@
     function parseDayFilter(raw){
       const f=normalize(raw);
       if(!f.startsWith('day:')) return null;
-      const day = f.slice(4).trim();
+      const tail = f.slice(4).trim();
+
+      // Accept shorthand: day:today / day:yesterday (normalize to day:YYYY-MM-DD).
+      let day = tail;
+      try{
+        if(tail==='today') day = ymd(Date.now());
+        if(tail==='yesterday') day = ymd(Date.now()-86400000);
+      }catch(e){}
+
       if(!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
       let pretty = day;
       try{
@@ -906,7 +914,7 @@
         const d=new Date(day+'T00:00:00');
         pretty = d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric', year:'numeric'});
       }catch(e){}
-      return { day, pretty };
+      return { day, pretty, normalized: `day:${day}` };
     }
 
     function shiftDayYmd(day, deltaDays){
@@ -1961,6 +1969,15 @@
     if(taskFilterEl){
       taskFilterEl.addEventListener('input', ()=>{
         taskFilter = taskFilterEl.value || '';
+
+        // If user typed a shorthand day filter, quietly normalize it.
+        const info=parseDayFilter(taskFilter);
+        if(info?.normalized && normalize(taskFilter)!==normalize(info.normalized)){
+          taskFilter = info.normalized;
+          taskFilterEl.value = taskFilter;
+          try{ taskFilterEl.setSelectionRange(taskFilter.length, taskFilter.length); }catch(e){}
+        }
+
         renderBoard();
       });
       taskFilterEl.addEventListener('keydown', (e)=>{
