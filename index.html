@@ -521,7 +521,7 @@
             <button class="btn secondary" id="clearTaskFilter">Clear</button>
           </div>
           <div class="subhint filterhelp" id="taskFilterHelp" style="display:none;">
-            Try <span class="mono">day:YYYY-MM-DD</span> (e.g., <span class="mono">day:2026-02-28</span>)
+            Try <span class="mono">day:today</span>, <span class="mono">day:yesterday</span>, or <span class="mono">day:YYYY-MM-DD</span> (e.g., <span class="mono">day:2026-02-28</span>). Also: <span class="mono">project:"My Project"</span>
           </div>
           <div class="subrow" id="dayFilterRow" style="display:none;">
             <div class="subhint" id="dayFilterHint">Day filter active: —</div>
@@ -951,22 +951,62 @@
       }catch(e){ return ''; }
     }
 
-    function matchesTaskFilter(card, colId){
-      const f=normalize(taskFilter);
-      if(!f) return true;
+    function parseTaskFilter(raw){
+      const out={ dayInfo:null, projectNeedle:'', q:'' };
+      const s=String(raw||'').trim();
+      if(!s) return out;
 
-      // Special filter: day:YYYY-MM-DD (local)
-      if(f.startsWith('day:')){
-        const info = parseDayFilter(taskFilter);
-        if(!info) return true;
+      // day:... can be anywhere; normalize to our canonical day:YYYY-MM-DD.
+      try{
+        const m=s.match(/(?:^|\s)day:([^\s]+)(?=\s|$)/i);
+        if(m){
+          const info=parseDayFilter('day:'+m[1]);
+          if(info){
+            out.dayInfo=info;
+            out.q = s.replace(m[0],' ').trim();
+            raw = out.q;
+          }
+        }
+      }catch(e){}
+
+      // project:"Name" or project:Name (token)
+      try{
+        const m=String(raw||'').match(/(?:^|\s)project:("([^"]+)"|'([^']+)'|([^\s]+))(?=\s|$)/i);
+        if(m){
+          out.projectNeedle = normalize(m[2]||m[3]||m[4]||'');
+          raw = String(raw||'').replace(m[0],' ').trim();
+        }
+      }catch(e){}
+
+      out.q = normalize(raw);
+      return out;
+    }
+
+    function matchesTaskFilter(card, colId){
+      const f=parseTaskFilter(taskFilter);
+      if(!f.dayInfo && !f.projectNeedle && !f.q) return true;
+
+      // day:YYYY-MM-DD (local). Match created, or moved if Done.
+      if(f.dayInfo){
         const created = card?.createdAt ? ymd(card.createdAt) : '';
         const moved = card?.movedAt ? ymd(card.movedAt) : '';
-        return created===info.day || (colId==='done' && moved===info.day);
+        const dayOk = created===f.dayInfo.day || (colId==='done' && moved===f.dayInfo.day);
+        if(!dayOk) return false;
       }
 
-      const pn = card?.projectId ? (getProjectNameById(card.projectId) || '') : '';
-      const hay = normalize((card?.text||'') + ' ' + pn);
-      return hay.includes(f);
+      if(f.projectNeedle){
+        const pn = card?.projectId ? (getProjectNameById(card.projectId) || '') : '';
+        const pnNorm = normalize(pn);
+        if(!pnNorm || !pnNorm.includes(f.projectNeedle)) return false;
+      }
+
+      if(f.q){
+        const pn = card?.projectId ? (getProjectNameById(card.projectId) || '') : '';
+        const hay = normalize((card?.text||'') + ' ' + pn);
+        if(!hay.includes(f.q)) return false;
+      }
+
+      return true;
     }
 
     function getProjectById(id){ return (state.projects||[]).find(p=>p.id===id) || null; }
@@ -1182,13 +1222,14 @@
         const dayInfo=parseDayFilter(taskFilter);
 
         const showEmptyHelp = !f;
-        const showDayHelp = f.startsWith('day:') && !dayInfo; // user is trying day filter but hasn’t completed it
+        const wantsDay = /(^|\s)day:/.test(f);
+        const showDayHelp = wantsDay && !dayInfo; // user is trying day filter but hasn’t completed it
 
         helpEl.style.display = (showEmptyHelp || showDayHelp) ? 'block' : 'none';
 
         if(showEmptyHelp){
           const iso = new Date().toISOString().slice(0,10);
-          helpEl.innerHTML = `Try <span class="mono">day:YYYY-MM-DD</span> (e.g., <span class="mono">day:${iso}</span>)`;
+          helpEl.innerHTML = `Try <span class="mono">day:today</span>, <span class="mono">day:${iso}</span>, or <span class="mono">project:\"My Project\"</span>`;
         }
 
         if(showDayHelp){
