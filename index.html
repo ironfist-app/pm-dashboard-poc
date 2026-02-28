@@ -1122,26 +1122,45 @@
 
     function openAssignProjectSheet(card){
       const current = card.projectId ? getProjectNameById(card.projectId) : '';
+      const projects=(state.projects||[]);
+      const shortcuts=projects.slice(0, 10); // keep sheet short for iPhone
+
+      const assign=(projectId)=>{
+        card.projectId = projectId || null;
+        save(state);
+        closeSheet();
+        toast(projectId ? 'Assigned.' : 'Cleared.');
+        renderAll();
+      };
+
       openSheet({
         title: 'Assign project',
-        sub: 'Type the exact project name (or blank to clear).',
+        sub: 'Type or tap a project. New names will create a project (active).',
         text: current,
         placeholder: 'Project name…',
         actions: [
           { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
-          { kind:'secondary', label:'Clear', onClick: ()=>{ card.projectId=null; save(state); closeSheet(); toast('Cleared.'); renderAll(); } },
+          { kind:'secondary', label:'Clear', onClick: ()=>assign(null) },
           { label:'Set', onClick: (val)=>{
               const t=(val||'').trim();
-              if(!t){ card.projectId=null; save(state); closeSheet(); toast('Cleared.'); renderAll(); return; }
-              const p=findProjectByName(t);
-              if(!p){ toast('Not found.'); return; }
-              card.projectId=p.id;
-              save(state);
-              closeSheet();
-              toast('Assigned.');
-              renderAll();
+              if(!t){ assign(null); return; }
+
+              let p=findProjectByName(t);
+              if(!p){
+                // Fast path: create + assign (local-first, no network).
+                (state.projects ||= []).unshift({id:uid(), name:t, createdAt: now(), status:'active'});
+                p=state.projects[0];
+              }
+
+              assign(p.id);
             }
-          }
+          },
+          ...shortcuts.map(p=>({
+            kind:'secondary',
+            label: p.name,
+            subLabel: p.status ? String(p.status) : '',
+            onClick: ()=>assign(p.id)
+          }))
         ]
       });
     }
