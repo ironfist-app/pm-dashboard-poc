@@ -1697,6 +1697,8 @@
       document.getElementById('done7').textContent=`Done(7d): ${doneSum}`;
       document.getElementById('created7').textContent=`Created(7d): ${createdSum}`;
 
+      const dayLabel=(i)=>{ try{ return new Date(start + i*dayMs).toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'});}catch(e){ return 'Day '+(i+1);} };
+
       svg.innerHTML = `
         <defs>
           <linearGradient id="gradA" x1="0" x2="1">
@@ -1707,8 +1709,17 @@
         <rect x="0" y="0" width="300" height="90" fill="rgba(0,0,0,.22)"/>
         <path d="${path(pC)}" fill="none" stroke="rgba(124,92,255,.65)" stroke-width="3" />
         <path d="${path(pD)}" fill="none" stroke="rgba(45,212,191,.75)" stroke-width="3" />
-        ${pD.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.2" fill="rgba(45,212,191,.95)"/>`).join('')}
+        ${pD.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.2" fill="rgba(45,212,191,.95)"/>`).join('')}
+        ${pD.map((p,i)=>{
+          const tip = `${dayLabel(i)} · Created ${bins[i].created} · Done ${bins[i].done}`;
+          return `<circle cx="${p[0]}" cy="${p[1]}" r="14" fill="transparent" data-tip="${escapeHtml(tip)}" style="cursor:pointer"/>`;
+        }).join('')}
       `;
+
+      // iPhone-friendly: tap points to see day details.
+      svg.querySelectorAll('circle[data-tip]').forEach(c=>{
+        c.addEventListener('click', ()=>toast(c.getAttribute('data-tip')||''));
+      });
     }
 
     function renderAll(){
