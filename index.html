@@ -1522,6 +1522,24 @@
     };
 
     // Export / Import / Reset (local-first safety net)
+    const LAST_BACKUP_KEY = 'ironfist.noir.lastBackupAt';
+
+    function markBackupNow(){
+      try{ localStorage.setItem(LAST_BACKUP_KEY, String(Date.now())); }catch(e){}
+    }
+
+    function lastBackupLabel(){
+      try{
+        const v=(localStorage.getItem(LAST_BACKUP_KEY)||'').trim();
+        if(!v) return 'Last backup: never';
+        const ms=Number(v);
+        if(!Number.isFinite(ms)) return 'Last backup: —';
+        const d=new Date(ms);
+        const fmt=new Intl.DateTimeFormat(undefined,{weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
+        return 'Last backup: ' + fmt.format(d);
+      }catch(e){ return 'Last backup: —'; }
+    }
+
     function downloadJson(filename, text){
       const blob=new Blob([text],{type:'application/json'});
       const url=URL.createObjectURL(blob);
@@ -1584,13 +1602,27 @@
       const txt=JSON.stringify(state,null,2);
       openSheet({
         title:'Export',
-        sub:'Copy JSON as a quick backup, or download a file.',
+        sub:`Copy JSON as a quick backup, or download a file. · ${lastBackupLabel()}`,
         text: txt,
         placeholder:'',
         actions:[
           { kind:'secondary', label:'Close', onClick: ()=>closeSheet() },
-          { kind:'secondary', label:'Download', onClick: ()=>{ downloadJson('ironfist-hq-noir.json', txt); toast('Downloaded.'); } },
-          { label:'Copy JSON', onClick: async()=>{ const ok=await copyToClipboard(txt); toast(ok ? 'Copied.' : 'Copy failed.'); } },
+          { kind:'secondary', label:'Download', onClick: ()=>{
+              downloadJson('ironfist-hq-noir.json', txt);
+              markBackupNow();
+              sheetSubEl.textContent = `Copy JSON as a quick backup, or download a file. · ${lastBackupLabel()}`;
+              toast('Downloaded.');
+            }
+          },
+          { label:'Copy JSON', onClick: async()=>{
+              const ok=await copyToClipboard(txt);
+              if(ok){
+                markBackupNow();
+                sheetSubEl.textContent = `Copy JSON as a quick backup, or download a file. · ${lastBackupLabel()}`;
+              }
+              toast(ok ? 'Copied.' : 'Copy failed.');
+            }
+          },
         ]
       });
     };
