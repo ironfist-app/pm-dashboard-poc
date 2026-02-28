@@ -117,6 +117,7 @@
       box-shadow:none;
       white-space:nowrap;
     }
+    .subaction.mini{ padding:4px 9px; font-size:10.5px; }
     .subaction:active{ transform: translateY(1px) scale(.99); }
 
     .btn{
@@ -1110,13 +1111,38 @@
       if(filterEl && document.activeElement!==filterEl) filterEl.value = taskFilter || '';
       if(clearEl) clearEl.style.display = normalize(taskFilter) ? 'inline-flex' : 'none';
 
-      // Discoverability: show helper only when filter box is empty
+      // Discoverability: keep help subtle + context-aware
       if(helpEl){
-        const showHelp = !normalize(taskFilter);
-        helpEl.style.display = showHelp ? 'block' : 'none';
-        if(showHelp){
+        const f=normalize(taskFilter);
+        const dayInfo=parseDayFilter(taskFilter);
+
+        const showEmptyHelp = !f;
+        const showDayHelp = f.startsWith('day:') && !dayInfo; // user is trying day filter but hasn’t completed it
+
+        helpEl.style.display = (showEmptyHelp || showDayHelp) ? 'block' : 'none';
+
+        if(showEmptyHelp){
           const iso = new Date().toISOString().slice(0,10);
           helpEl.innerHTML = `Try <span class="mono">day:YYYY-MM-DD</span> (e.g., <span class="mono">day:${iso}</span>)`;
+        }
+
+        if(showDayHelp){
+          const today = ymd(now());
+          const yesterday = ymd(now()-86400000);
+          helpEl.innerHTML = `Day filter: <span class="mono">day:YYYY-MM-DD</span> · <button class="subaction mini" type="button" data-day-fill="${today}">Today</button> <button class="subaction mini" type="button" data-day-fill="${yesterday}">Yesterday</button>`;
+
+          helpEl.querySelectorAll('button[data-day-fill]').forEach(b=>{
+            b.addEventListener('click', ()=>{
+              const day=b.getAttribute('data-day-fill')||'';
+              if(!day) return;
+              taskFilter = `day:${day}`;
+              if(filterEl) {
+                filterEl.value = taskFilter;
+                try{ filterEl.focus(); filterEl.setSelectionRange(taskFilter.length, taskFilter.length); }catch(e){}
+              }
+              renderBoard();
+            });
+          });
         }
       }
 
