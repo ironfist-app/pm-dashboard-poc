@@ -807,7 +807,8 @@
           renderAll();
         };
 
-        for(const card of (state.columns[col.id]||[]).filter(matchesTaskFilter)){
+        const visibleCards = (state.columns[col.id]||[]).filter(matchesTaskFilter);
+        for(const card of visibleCards){
           const li=document.createElement('li');
           li.className='item';
           li.draggable=true;
@@ -898,6 +899,14 @@
           list.appendChild(li);
         }
 
+        if(!visibleCards.length){
+          const empty=document.createElement('li');
+          empty.className='item';
+          empty.style.opacity='.75';
+          empty.innerHTML = `<div class="txt">${normalize(taskFilter) ? 'No matches.' : 'No tasks.'}</div><div class="meta"><span>Tap Add.</span></div>`;
+          list.appendChild(empty);
+        }
+
         section.querySelector('[data-add]')?.addEventListener('click', ()=>{
           openSheet({
             title:'New task',
@@ -928,7 +937,20 @@
       const el=document.getElementById('projList');
       if(!el) return;
       el.innerHTML='';
-      for(const p of (state.projects||[])){
+      const projects = (state.projects||[]);
+      if(!projects.length){
+        const empty=document.createElement('div');
+        empty.className='item';
+        empty.style.opacity='.85';
+        empty.innerHTML = `
+          <div class="top"><div class="txt">No projects yet.</div></div>
+          <div class="meta"><span>Tap + (bottom-right) or “Add” above.</span></div>
+        `;
+        el.appendChild(empty);
+        return;
+      }
+
+      for(const p of projects){
         const div=document.createElement('div');
         div.className='item';
         div.innerHTML = `
@@ -943,8 +965,9 @@
         `;
         const [edit,del]=div.querySelectorAll('button');
 
-        // Tap name to go deep
-        div.querySelector('.txt')?.addEventListener('click', ()=>{
+        // Tap row to go deep (except buttons) — bigger iPhone hit target
+        div.addEventListener('click', (e)=>{
+          if(e?.target?.closest?.('button')) return;
           location.hash = '#project:'+p.id;
           renderAll();
         });
@@ -1193,6 +1216,14 @@
           list.appendChild(li);
         }
 
+        if(!linked.length){
+          const empty=document.createElement('li');
+          empty.className='item';
+          empty.style.opacity='.75';
+          empty.innerHTML = `<div class="txt">No tasks in ${escapeHtml(col.title)}.</div><div class="meta"><span>Tap Add.</span></div>`;
+          list.appendChild(empty);
+        }
+
         section.querySelector('[data-add]')?.addEventListener('click', ()=>{
           openSheet({
             title:'New task',
@@ -1223,7 +1254,20 @@
       const el=document.getElementById('apprList');
       if(!el) return;
       el.innerHTML='';
-      for(const a of (state.approvals||[])){
+      const approvals = (state.approvals||[]);
+      if(!approvals.length){
+        const empty=document.createElement('div');
+        empty.className='item';
+        empty.style.opacity='.85';
+        empty.innerHTML = `
+          <div class="top"><div class="txt">No approvals.</div></div>
+          <div class="meta"><span>When something needs a decision, it lives here.</span></div>
+        `;
+        el.appendChild(empty);
+        return;
+      }
+
+      for(const a of approvals){
         const div=document.createElement('div');
         div.className='item';
         div.innerHTML = `
