@@ -93,6 +93,11 @@
     .btn.secondary{ background:transparent; box-shadow:none; }
     .btn:active{ transform: translateY(1px) scale(.99); }
 
+    /* Multiline buttons (used for Snapshot previews) */
+    .btn.stack{ text-align:left; white-space:normal; }
+    .btn.stack .bt{ display:block; }
+    .btn.stack .bs{ display:block; margin-top:2px; font-size:11px; font-weight:750; color:var(--muted); letter-spacing:.1px; }
+
     .wrap{ max-width: 980px; margin: 0 auto; padding: 16px 14px 34px; }
 
     /* Screens */
@@ -910,7 +915,19 @@
       for(const a of actions){
         const b=document.createElement('button');
         b.className = 'btn ' + (a.kind||'');
-        b.textContent = a.label || 'OK';
+
+        const label = a.label || 'OK';
+        const subLabel = (a.subLabel||'').trim();
+
+        if(subLabel){
+          b.classList.add('stack');
+          b.innerHTML = `<span class="bt">${escapeHtml(label)}</span><span class="bs">${escapeHtml(subLabel)}</span>`;
+        }else if(a.html){
+          b.innerHTML = String(a.html||'');
+        }else{
+          b.textContent = label;
+        }
+
         b.onclick = ()=>{ try{ a.onClick?.(sheetTextEl.value); }catch(e){} };
         sheetActionsEl.appendChild(b);
       }
@@ -1867,6 +1884,73 @@
         }catch(e){ return '—'; }
       };
 
+      const snapStats=(s)=>{
+        try{
+          const obj=JSON.parse(String(s?.data||''));
+          const cols=obj?.columns||{};
+          const tasks=Object.values(cols).reduce((a,arr)=>a+(Array.isArray(arr)?arr.length:0),0);
+          const projects=Array.isArray(obj?.projects) ? obj.projects.length : 0;
+          return { tasks, projects };
+        }catch(e){ return { tasks:null, projects:null }; }
+      };
+
+      const openSnapDetail=(s)=>{
+        const when=fmt(s.at);
+        const st=snapStats(s);
+        const line = (st.tasks==null || st.projects==null)
+          ? 'Preview: —'
+          : `Tasks: ${st.tasks} · Projects: ${st.projects}`;
+
+        openSheet({
+          title:'Snapshot',
+          sub:`${when} · ${line}`,
+          text:'',
+          placeholder:'',
+          actions:[
+            { kind:'secondary', label:'Back', onClick: ()=>openSnapshotsSheet() },
+            { kind:'danger', label:'Delete snapshot', onClick: ()=>{
+                openSheet({
+                  title:'Delete snapshot?',
+                  sub:`Delete ${when}. This cannot be undone.`,
+                  text:'',
+                  placeholder:'',
+                  actions:[
+                    { kind:'secondary', label:'Cancel', onClick: ()=>openSnapDetail(s) },
+                    { kind:'danger', label:'Delete', onClick: ()=>{
+                        try{
+                          const cur=getSnapshots();
+                          const next=cur.filter(x=>x?.id!==s?.id);
+                          setSnapshots(next);
+                          toast('Deleted.');
+                          openSnapshotsSheet();
+                        }catch(e){ toast('Delete failed.'); openSnapshotsSheet(); }
+                      }
+                    }
+                  ]
+                });
+              }
+            },
+            { label:'Restore', onClick: ()=>{
+                openSheet({
+                  title:'Restore snapshot?',
+                  sub:`Restore from ${when}. This will overwrite your current local data.`,
+                  text:'',
+                  placeholder:'',
+                  actions:[
+                    { kind:'secondary', label:'Cancel', onClick: ()=>openSnapDetail(s) },
+                    { kind:'danger', label:'Restore', onClick: ()=>{
+                        try{ importFromText(String(s.data||'')); closeSheet(); toast('Restored.'); }
+                        catch(e){ toast('Restore failed.'); openSnapshotsSheet(); }
+                      }
+                    }
+                  ]
+                });
+              }
+            }
+          ]
+        });
+      };
+
       openSheet({
         title:'Snapshots',
         sub:'Auto snapshots are stored only on this device. Restoring replaces current local data.',
@@ -1874,26 +1958,20 @@
         placeholder:'',
         actions:[
           { kind:'secondary', label:'Close', onClick: ()=>closeSheet() },
-          ...snaps.map((s)=>({
-            kind:'secondary',
-            label:`Restore · ${fmt(s.at)}`,
-            onClick: ()=>{
-              openSheet({
-                title:'Restore snapshot?',
-                sub:`Restore from ${fmt(s.at)}. This will overwrite your current local data.`,
-                text:'',
-                placeholder:'',
-                actions:[
-                  { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
-                  { kind:'danger', label:'Restore', onClick: ()=>{
-                      try{ importFromText(String(s.data||'')); closeSheet(); toast('Restored.'); }
-                      catch(e){ toast('Restore failed.'); }
-                    }
-                  }
-                ]
-              });
-            }
-          }))
+          ...snaps.map((s)=>{
+            const when=fmt(s.at);
+            const st=snapStats(s);
+            const sub = (st.tasks==null || st.projects==null)
+              ? 'Preview: —'
+              : `Tasks: ${st.tasks} · Projects: ${st.projects}`;
+
+            return {
+              kind:'secondary',
+              label: when,
+              subLabel: sub,
+              onClick: ()=>openSnapDetail(s)
+            };
+          })
         ]
       });
     }
