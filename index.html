@@ -900,6 +900,15 @@
       if(!f.startsWith('day:')) return null;
       const tail = f.slice(4).trim();
 
+      const pad2=(n)=>String(n).padStart(2,'0');
+      const isValidYmd=(s)=>{
+        try{
+          if(!/^\d{4}-\d{2}-\d{2}$/.test(String(s||''))) return false;
+          const d=new Date(s+'T12:00:00'); // noon local to dodge DST edge cases
+          return ymd(d.getTime())===s;
+        }catch(e){ return false; }
+      };
+
       // Accept shorthand: day:today / day:yesterday (normalize to day:YYYY-MM-DD).
       let day = tail;
       try{
@@ -907,7 +916,23 @@
         if(tail==='yesterday') day = ymd(Date.now()-86400000);
       }catch(e){}
 
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+      // Accept forgiving date inputs and normalize:
+      // - day:2026-2-8
+      // - day:2026/02/28
+      // - day:2026 - 02 - 28
+      // - day:2026 02 28
+      if(!isValidYmd(day)){
+        const m = String(day||'').match(/^(\d{4})\s*[-\/.]\s*(\d{1,2})\s*[-\/.]\s*(\d{1,2})$/) ||
+                  String(day||'').match(/^(\d{4})\s+(\d{1,2})\s+(\d{1,2})$/);
+        if(m){
+          const y=m[1];
+          const mo=pad2(m[2]);
+          const da=pad2(m[3]);
+          day = `${y}-${mo}-${da}`;
+        }
+      }
+
+      if(!isValidYmd(day)) return null;
       let pretty = day;
       try{
         // Force local day label.
