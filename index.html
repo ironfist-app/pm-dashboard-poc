@@ -699,6 +699,69 @@
     const AUTO_SNAPSHOT_MAX = 3;
     const AUTO_SNAPSHOT_COOLDOWN_MS = 30*60*1000;
 
+    // Recent projects (MRU) — used for quick chips in Tasks filter help.
+    const RECENT_PROJECTS_KEY = 'ironfist.noir.recentProjectIds';
+    const RECENT_PROJECTS_MAX = 10;
+
+    function getRecentProjectIds(){
+      try{
+        const raw=(localStorage.getItem(RECENT_PROJECTS_KEY)||'').trim();
+        const arr=raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr.filter(Boolean).map(String) : [];
+      }catch(e){ return []; }
+    }
+
+    function setRecentProjectIds(ids){
+      try{
+        const clean=(ids||[]).filter(Boolean).map(String);
+        localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(clean.slice(0, RECENT_PROJECTS_MAX)));
+      }catch(e){}
+    }
+
+    function bumpRecentProjectId(id){
+      try{
+        const pid=String(id||'').trim();
+        if(!pid) return;
+        const cur=getRecentProjectIds().filter(x=>x!==pid);
+        cur.unshift(pid);
+        setRecentProjectIds(cur);
+      }catch(e){}
+    }
+
+    function removeRecentProjectId(id){
+      try{
+        const pid=String(id||'').trim();
+        if(!pid) return;
+        const cur=getRecentProjectIds().filter(x=>x!==pid);
+        setRecentProjectIds(cur);
+      }catch(e){}
+    }
+
+    function getQuickProjects(max=5){
+      try{
+        const out=[];
+        const seen=new Set();
+        const byId=new Map((state.projects||[]).map(p=>[p.id, p]));
+
+        for(const id of getRecentProjectIds()){
+          const p=byId.get(id);
+          if(!p || seen.has(p.id)) continue;
+          out.push(p);
+          seen.add(p.id);
+          if(out.length>=max) return out;
+        }
+
+        for(const p of (state.projects||[])){
+          if(!p || seen.has(p.id)) continue;
+          out.push(p);
+          seen.add(p.id);
+          if(out.length>=max) break;
+        }
+
+        return out;
+      }catch(e){ return []; }
+    }
+
     function getSnapshots(){
       try{
         const raw=(localStorage.getItem(SNAPSHOTS_KEY)||'').trim();
@@ -1240,6 +1303,7 @@
 
       const assign=(projectId)=>{
         card.projectId = projectId || null;
+        if(projectId) bumpRecentProjectId(projectId);
         save(state);
         closeSheet();
         toast(projectId ? 'Assigned.' : 'Cleared.');
@@ -1302,7 +1366,37 @@
 
         if(showEmptyHelp){
           const iso = new Date().toISOString().slice(0,10);
-          helpEl.innerHTML = `Try <span class="mono">day:today</span>, <span class="mono">day:${iso}</span>, or <span class="mono">project:\"My Project\"</span>`;
+          const quick = getQuickProjects(5);
+
+          const chipRow = quick.length ? (
+            `<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">` +
+              `<span class="subhint" style="padding:0 2px;">Projects:</span>` +
+              quick.map(p=>`<button class="pill pillbtn mini" type="button" data-proj-chip="${escapeHtml(p.id)}" title="Filter by project">${escapeHtml(p.name)}</button>`).join('') +
+            `</div>`
+          ) : '';
+
+          helpEl.innerHTML = `Try <span class="mono">day:today</span>, <span class="mono">day:${iso}</span>, or <span class="mono">project:\"My Project\"</span>` + chipRow;
+
+          helpEl.querySelectorAll('button[data-proj-chip]').forEach(b=>{
+            b.addEventListener('click', ()=>{
+              const pid=b.getAttribute('data-proj-chip')||'';
+              const pname = pid ? getProjectNameById(pid) : '';
+              if(!pname) return;
+
+              bumpRecentProjectId(pid);
+              taskFilter = setOrReplaceProjectToken(taskFilter, pname);
+              // Keep day:… token normalized if present
+              const norm = normalizeDayTokenInFilterString(taskFilter);
+              if(norm?.normalizedStr) taskFilter = norm.normalizedStr;
+
+              if(filterEl){
+                filterEl.value = taskFilter;
+                try{ filterEl.focus(); filterEl.setSelectionRange(taskFilter.length, taskFilter.length); }catch(e){}
+              }
+              renderBoard();
+              toast('Filtered.');
+            });
+          });
         }
 
         if(showDayHelp){
@@ -1450,6 +1544,7 @@
               const pname = pid ? getProjectNameById(pid) : '';
               if(!pname) return;
 
+              bumpRecentProjectId(pid);
               taskFilter = setOrReplaceProjectToken(taskFilter, pname);
               // Keep day:… token normalized if present
               const norm = normalizeDayTokenInFilterString(taskFilter);
@@ -1619,6 +1714,7 @@
         // Tap row to go deep (except buttons) — bigger iPhone hit target
         div.addEventListener('click', (e)=>{
           if(e?.target?.closest?.('button')) return;
+          bumpRecentProjectId(p.id);
           location.hash = '#project:'+p.id;
           renderAll();
         });
@@ -1656,6 +1752,7 @@
                             }
                           }
                           state.projects=(state.projects||[]).filter(x=>x.id!==p.id);
+                          removeRecentProjectId(p.id);
                           save(state);
                           closeSheet();
                           toast('Deleted.');
@@ -1686,6 +1783,7 @@
                     }
                   }
                   state.projects=(state.projects||[]).filter(x=>x.id!==p.id);
+                  removeRecentProjectId(p.id);
                   save(state);
                   closeSheet();
                   toast('Deleted.');
@@ -1723,6 +1821,7 @@
       }
 
       editBtn.style.display='inline-flex';
+      bumpRecentProjectId(p.id);
       titleEl.textContent=p.name;
       subEl.textContent=`${p.status||'active'} · Created ${fmtTime(p.createdAt||now())}`;
 
@@ -2293,6 +2392,7 @@
       const t=(document.getElementById('projInput').value||'').trim();
       if(!t) return;
       (state.projects ||= []).unshift({id:uid(), name:t, createdAt: now(), status:'active'});
+      try{ bumpRecentProjectId(state.projects?.[0]?.id); }catch(e){}
       document.getElementById('projInput').value='';
       save(state); renderAll();
     };
