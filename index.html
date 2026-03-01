@@ -86,6 +86,15 @@
       color: rgba(238,242,255,.95);
     }
 
+    /* Tiny clear affordance inside chips (iPhone-first) */
+    .pillbtn .chipx{
+      margin-left: 6px;
+      opacity: .75;
+      font-weight: 950;
+      letter-spacing: .2px;
+    }
+    .pillbtn:hover .chipx{ opacity: .92; }
+
     .subhint{
       font-size:11px;
       color: rgba(169,177,201,.92);
@@ -567,7 +576,7 @@
           <div class="subrow" id="projectFilterRow" style="display:none;">
             <div class="subhint" id="projectFilterHint">Project filter active: —</div>
             <div class="row" style="gap:6px; justify-content:flex-end;">
-              <button class="pill pillbtn mini" id="clearProjectFilter" type="button" aria-label="Clear project filter">Project: — ×</button>
+              <button class="pill pillbtn mini" id="clearProjectFilter" type="button" aria-label="Clear project filter">Project: — <span class="chipx" aria-hidden="true">✕</span></button>
             </div>
           </div>
           <div class="board" id="board"></div>
@@ -1470,13 +1479,14 @@
           projRow.style.display='flex';
           if(projHint) projHint.innerHTML = `Project filter active: <span class="mono">${escapeHtml(proj.token)}</span>`;
           if(clearProjEl){
-            const label = `Project: ${proj.name} ×`;
-            clearProjEl.textContent = label;
+            // iPhone-first: make the clear affordance feel like a chip with a tiny ✕.
+            clearProjEl.innerHTML = `Project: <span>${escapeHtml(proj.name)}</span><span class="chipx" aria-hidden="true">✕</span>`;
             clearProjEl.setAttribute('title', 'Clear project filter');
+            clearProjEl.setAttribute('aria-label', `Clear project filter (${proj.name})`);
           }
         } else {
           projRow.style.display='none';
-          if(clearProjEl) clearProjEl.textContent = 'Project: — ×';
+          if(clearProjEl) clearProjEl.innerHTML = 'Project: — <span class="chipx" aria-hidden="true">✕</span>';
         }
       }
 
@@ -2354,6 +2364,11 @@
           last.tokenStart = last.index + last.leadLen;
         }
         if(!last) return null;
+
+        // Phase 42: only treat Esc as “edit project token” if the caret is actually inside that token.
+        // Otherwise, a stray earlier “project:” (e.g., `project: day:today`) could make us clear the wrong chunk.
+        const hardEnd = findProjectTokenEnd(s, last.tokenStart);
+        if(pos > hardEnd) return null;
 
         let frag=head.slice(last.prefixEnd);
         let quote='';
