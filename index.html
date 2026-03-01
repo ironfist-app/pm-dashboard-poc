@@ -80,6 +80,11 @@
     }
     .pillbtn:active{ transform: translateY(1px) scale(.99); }
     .pillbtn:hover{ border-color: rgba(255,255,255,.18); }
+    .pillbtn.selected{
+      border-color: rgba(124,92,255,.55);
+      background: rgba(124,92,255,.12);
+      color: rgba(238,242,255,.95);
+    }
 
     .subhint{
       font-size:11px;
@@ -2323,6 +2328,12 @@
     const projectAutocompleteRowEl = document.getElementById('projectAutocompleteRow');
     const projectAutocompleteChipsEl = document.getElementById('projectAutocompleteChips');
 
+    // Project autocomplete (Tasks filter) state
+    let projectAcPicks = [];
+    let projectAcNeedle = '';
+    let projectAcIndex = 0;
+    let projectAcBtns = [];
+
     function activeProjectEditContext(str, cursorPos){
       try{
         const s=String(str||'');
@@ -2363,8 +2374,48 @@
 
     function hideProjectAutocomplete(){
       try{
+        projectAcPicks = [];
+        projectAcBtns = [];
+        projectAcNeedle = '';
+        projectAcIndex = 0;
         if(projectAutocompleteRowEl) projectAutocompleteRowEl.style.display='none';
         if(projectAutocompleteChipsEl) projectAutocompleteChipsEl.innerHTML='';
+      }catch(e){}
+    }
+
+    function applyProjectAutocompletePick(p, ctxHint){
+      try{
+        if(!taskFilterEl) return;
+        const curS=String(taskFilterEl.value||'');
+        const curPos=Number.isFinite(taskFilterEl.selectionStart) ? taskFilterEl.selectionStart : curS.length;
+        const curCtx=activeProjectEditContext(curS, curPos) || ctxHint;
+        if(!curCtx) return;
+
+        const insert=`project:"${String(p?.name||'').replace(/"/g,'\\"')}"`;
+        let out = curS.slice(0, curCtx.tokenStart) + insert + curS.slice(curCtx.tokenEnd);
+        out = out.replace(/\s+/g,' ').trim();
+
+        taskFilter = out;
+        taskFilterEl.value = out;
+        try{ taskFilterEl.focus(); taskFilterEl.setSelectionRange(out.length, out.length); }catch(e){}
+        try{ bumpRecentProjectId(p.id); }catch(e){}
+
+        renderBoard();
+        updateProjectAutocomplete();
+      }catch(e){}
+    }
+
+    function setProjectAcIndex(next){
+      try{
+        const n = projectAcBtns.length;
+        if(!n) return;
+        const i = Math.max(0, Math.min(n-1, next|0));
+        projectAcIndex = i;
+        for(let k=0;k<n;k++){
+          const b=projectAcBtns[k];
+          if(!b) continue;
+          b.classList.toggle('selected', k===projectAcIndex);
+        }
       }catch(e){}
     }
 
@@ -2399,35 +2450,33 @@
         const picks=scored.slice(0,6).map(x=>x.p);
         if(!picks.length){ hideProjectAutocomplete(); return; }
 
-        projectAutocompleteChipsEl.innerHTML='';
-        for(const p of picks){
-          const btn=document.createElement('button');
-          btn.type='button';
-          btn.className='pill pillbtn mini';
-          btn.textContent=String(p.name||'').trim();
-          btn.onclick=()=>{
-            try{ flashTap(btn); }catch(e){}
-
-            const curS=String(taskFilterEl.value||'');
-            const curPos=Number.isFinite(taskFilterEl.selectionStart) ? taskFilterEl.selectionStart : curS.length;
-            const curCtx=activeProjectEditContext(curS, curPos) || ctx;
-            const insert=`project:"${String(p.name||'').replace(/"/g,'\\"')}"`;
-
-            let out = curS.slice(0, curCtx.tokenStart) + insert + curS.slice(curCtx.tokenEnd);
-            out = out.replace(/\s+/g,' ').trim();
-
-            taskFilter = out;
-            taskFilterEl.value = out;
-            try{ taskFilterEl.focus(); taskFilterEl.setSelectionRange(out.length, out.length); }catch(e){}
-            try{ bumpRecentProjectId(p.id); }catch(e){}
-
-            renderBoard();
-            updateProjectAutocomplete();
-          };
-          projectAutocompleteChipsEl.appendChild(btn);
+        // If the user changed the needle, reset selection.
+        if(needle !== projectAcNeedle){
+          projectAcNeedle = needle;
+          projectAcIndex = 0;
         }
 
+        projectAcPicks = picks;
+        projectAcBtns = [];
+
+        projectAutocompleteChipsEl.innerHTML='';
+        picks.forEach((p, idx)=>{
+          const btn=document.createElement('button');
+          btn.type='button';
+          btn.className='pill pillbtn mini' + (idx===projectAcIndex ? ' selected' : '');
+          btn.textContent=String(p.name||'').trim();
+          btn.onmouseenter=()=>setProjectAcIndex(idx);
+          btn.onfocus=()=>setProjectAcIndex(idx);
+          btn.onclick=()=>{
+            try{ flashTap(btn); }catch(e){}
+            applyProjectAutocompletePick(p, ctx);
+          };
+          projectAcBtns.push(btn);
+          projectAutocompleteChipsEl.appendChild(btn);
+        });
+
         projectAutocompleteRowEl.style.display='block';
+        setProjectAcIndex(projectAcIndex);
       }catch(e){ hideProjectAutocomplete(); }
     }
 
@@ -2448,6 +2497,26 @@
         renderBoard();
       });
       taskFilterEl.addEventListener('keydown', (e)=>{
+        const acOpen = !!(projectAcPicks && projectAcPicks.length && projectAutocompleteRowEl && projectAutocompleteRowEl.style.display!=='none');
+
+        if(acOpen && (e.key==='ArrowDown' || e.key==='ArrowUp')){
+          e.preventDefault();
+          setProjectAcIndex(projectAcIndex + (e.key==='ArrowDown' ? 1 : -1));
+          return;
+        }
+
+        if(acOpen && e.key==='Enter'){
+          const p = projectAcPicks?.[projectAcIndex];
+          if(p){
+            e.preventDefault();
+            const s=String(taskFilterEl.value||'');
+            const pos=Number.isFinite(taskFilterEl.selectionStart) ? taskFilterEl.selectionStart : s.length;
+            const ctx=activeProjectEditContext(s, pos);
+            if(ctx) applyProjectAutocompletePick(p, ctx);
+            return;
+          }
+        }
+
         if(e.key==='Escape'){
           taskFilter='';
           taskFilterEl.value='';
