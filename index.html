@@ -554,6 +554,7 @@
           <div class="subhint" id="projectAutocompleteRow" style="display:none; margin-top:-8px; margin-bottom:10px; white-space:normal; line-height:1.25;">
             <span style="opacity:.9;">Project matches:</span>
             <span class="chips" id="projectAutocompleteChips"></span>
+            <span id="projectAutocompleteKeys" style="display:none; opacity:.85; margin-left:8px;">↑/↓ select • Enter apply • Esc clear</span>
           </div>
           <div class="subrow" id="dayFilterRow" style="display:none;">
             <div class="subhint" id="dayFilterHint">Day filter active: —</div>
@@ -2327,6 +2328,7 @@
 
     const projectAutocompleteRowEl = document.getElementById('projectAutocompleteRow');
     const projectAutocompleteChipsEl = document.getElementById('projectAutocompleteChips');
+    const projectAutocompleteKeysEl = document.getElementById('projectAutocompleteKeys');
 
     // Project autocomplete (Tasks filter) state
     let projectAcPicks = [];
@@ -2380,6 +2382,7 @@
         projectAcIndex = 0;
         if(projectAutocompleteRowEl) projectAutocompleteRowEl.style.display='none';
         if(projectAutocompleteChipsEl) projectAutocompleteChipsEl.innerHTML='';
+        if(projectAutocompleteKeysEl) projectAutocompleteKeysEl.style.display='none';
       }catch(e){}
     }
 
@@ -2476,6 +2479,14 @@
         });
 
         projectAutocompleteRowEl.style.display='block';
+        if(projectAutocompleteKeysEl){
+          const coarse = (typeof matchMedia==='function') ? matchMedia('(pointer: coarse)').matches : false;
+          // Keep it tiny + helpful on iPhone: show tap-first guidance, but keep keyboard hints for desktop.
+          projectAutocompleteKeysEl.textContent = coarse
+            ? 'Tap apply • Esc clear'
+            : '↑/↓ select • Enter apply • Esc clear';
+          projectAutocompleteKeysEl.style.display='inline';
+        }
         setProjectAcIndex(projectAcIndex);
       }catch(e){ hideProjectAutocomplete(); }
     }
