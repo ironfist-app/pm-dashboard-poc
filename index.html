@@ -1372,6 +1372,23 @@
 
           const [edit,del]=li.querySelectorAll('button');
           edit.onclick=()=>{
+            const fromCol = col.id;
+
+            const moveTo = (toCol)=>{
+              if(!toCol || toCol===fromCol) return;
+              state.columns[fromCol]=(state.columns[fromCol]||[]).filter(x=>x.id!==card.id);
+              (state.columns[toCol] ||= []).unshift(card);
+              card.movedAt = now();
+              save(state);
+              closeSheet();
+              toast('Moved.');
+              renderAll();
+            };
+
+            const moveButtons = COLUMNS
+              .filter(c=>c.id!==fromCol)
+              .map(c=>({ kind:'secondary', label:`Move → ${c.title}`, onClick: ()=>moveTo(c.id) }));
+
             openSheet({
               title: 'Edit task',
               sub: col.title,
@@ -1380,6 +1397,7 @@
               actions: [
                 { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
                 { kind:'secondary', label:'Project', onClick: ()=>openAssignProjectSheet(card) },
+                ...moveButtons,
                 { label:'Save', onClick: (val)=>{
                     const t=(val||'').trim();
                     if(!t) return;
@@ -1703,6 +1721,23 @@
 
           const [edit,del]=li.querySelectorAll('button');
           edit.onclick=()=>{
+            const fromCol = col.id;
+
+            const moveTo = (toCol)=>{
+              if(!toCol || toCol===fromCol) return;
+              state.columns[fromCol]=(state.columns[fromCol]||[]).filter(x=>x.id!==card.id);
+              (state.columns[toCol] ||= []).unshift(card);
+              card.movedAt = now();
+              save(state);
+              closeSheet();
+              toast('Moved.');
+              renderAll();
+            };
+
+            const moveButtons = COLUMNS
+              .filter(c=>c.id!==fromCol)
+              .map(c=>({ kind:'secondary', label:`Move → ${c.title}`, onClick: ()=>moveTo(c.id) }));
+
             openSheet({
               title: 'Edit task',
               sub: col.title,
@@ -1711,6 +1746,7 @@
               actions: [
                 { kind:'secondary', label:'Cancel', onClick: ()=>closeSheet() },
                 { kind:'secondary', label:'Project', onClick: ()=>openAssignProjectSheet(card) },
+                ...moveButtons,
                 { label:'Save', onClick: (val)=>{
                     const t=(val||'').trim();
                     if(!t) return;
