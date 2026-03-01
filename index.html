@@ -2374,6 +2374,65 @@
       }catch(e){ return null; }
     }
 
+    function findProjectTokenEnd(s, tokenStart){
+      try{
+        const str=String(s||'');
+        let i=Math.max(0, tokenStart|0);
+        const head=str.slice(i);
+        const m=head.match(/^project:\s*/i);
+        if(!m) return i;
+        i += m[0].length;
+
+        // skip whitespace
+        while(i < str.length && /\s/.test(str[i])) i++;
+
+        const q=str[i];
+        if(q==='"' || q==="'"){
+          i++; // after opening quote
+          while(i < str.length){
+            const ch=str[i];
+            if(ch==='\\'){ i+=2; continue; }
+            if(ch===q){ i++; break; }
+            i++;
+          }
+          // include any trailing non-space chars until whitespace (defensive)
+          while(i < str.length && !/\s/.test(str[i])) i++;
+          return i;
+        }
+
+        // Unquoted: consume until whitespace
+        while(i < str.length && !/\s/.test(str[i])) i++;
+        return i;
+      }catch(e){ return tokenStart; }
+    }
+
+    function clearActiveProjectToken(){
+      try{
+        if(!taskFilterEl) return false;
+        const s=String(taskFilterEl.value||'');
+        const pos=Number.isFinite(taskFilterEl.selectionStart) ? taskFilterEl.selectionStart : s.length;
+        const ctx=activeProjectEditContext(s, pos);
+        if(!ctx) return false;
+
+        const end = findProjectTokenEnd(s, ctx.tokenStart);
+        let out = s.slice(0, ctx.tokenStart) + s.slice(end);
+        out = out.replace(/\s+/g,' ').trim();
+
+        taskFilter = out;
+        taskFilterEl.value = out;
+        try{
+          const p=Math.min(ctx.tokenStart, out.length);
+          taskFilterEl.focus();
+          taskFilterEl.setSelectionRange(p,p);
+        }catch(e){}
+
+        hideProjectAutocomplete();
+        updateProjectAutocomplete();
+        renderBoard();
+        return true;
+      }catch(e){ return false; }
+    }
+
     function hideProjectAutocomplete(){
       try{
         projectAcPicks = [];
@@ -2529,6 +2588,20 @@
         }
 
         if(e.key==='Escape'){
+          // Phase 41: Esc should be gentle.
+          // If user is editing a project:… token (or autocomplete is open), clear just that token / close the row.
+          if(acOpen || activeProjectEditContext(String(taskFilterEl.value||''), taskFilterEl.selectionStart)){
+            e.preventDefault();
+            const cleared = clearActiveProjectToken();
+            if(!cleared){
+              hideProjectAutocomplete();
+              updateProjectAutocomplete();
+              renderBoard();
+            }
+            return;
+          }
+
+          // Otherwise: Esc clears the whole filter.
           taskFilter='';
           taskFilterEl.value='';
           hideProjectAutocomplete();
