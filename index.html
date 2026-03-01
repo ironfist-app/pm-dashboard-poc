@@ -2146,7 +2146,21 @@
     function jumpDayFromButton(btn){
       const day = btn?.getAttribute('data-day-jump') || '';
       if(!day) return;
-      taskFilter = `day:${day}`;
+
+      // Preserve the rest of the filter string (e.g., project:"X" day:2026-03-01)
+      // and only adjust the day:… token.
+      const s=String(taskFilter||'').trim();
+      const hasDay = !!parseTaskFilter(s).dayInfo;
+
+      if(hasDay){
+        taskFilter = s
+          .replace(/(^|\s)day:\s*[^\s]+/i, (m, lead)=>`${lead}day:${day}`)
+          .replace(/\s+/g,' ')
+          .trim();
+      }else{
+        taskFilter = (s ? (s+' ') : '') + `day:${day}`;
+      }
+
       if(taskFilterEl){
         taskFilterEl.value = taskFilter;
         try{ taskFilterEl.focus(); taskFilterEl.setSelectionRange(taskFilter.length, taskFilter.length); }catch(e){}
