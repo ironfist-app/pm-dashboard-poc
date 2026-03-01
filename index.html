@@ -266,6 +266,21 @@
       font-size: 12px;
     }
 
+    /* Inline filter chip inside the Tasks filter input (Phase 43) */
+    .inputchipwrap{ position:relative; flex:1; min-width: 220px; }
+    .inputchipwrap .input{ width:100%; }
+    .inputchip{
+      position:absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      max-width: 65%;
+      overflow:hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      box-shadow:none;
+    }
+
     /* List items */
     .list{ display:flex; flex-direction:column; gap:10px; }
     .item{
@@ -554,7 +569,10 @@
         </div>
         <div class="body">
           <div class="row" style="margin-bottom:12px;">
-            <input class="input" id="taskFilter" placeholder="Filter tasks…" />
+            <div class="inputchipwrap" id="taskFilterWrap">
+              <button class="pill pillbtn mini inputchip" id="taskProjectChip" type="button" aria-label="Clear project filter" style="display:none;">Project: — <span class="chipx" aria-hidden="true">✕</span></button>
+              <input class="input" id="taskFilter" placeholder="Filter tasks…" />
+            </div>
             <button class="btn secondary" id="clearTaskFilter">Clear</button>
           </div>
           <div class="subhint filterhelp" id="taskFilterHelp" style="display:none;">
@@ -1469,17 +1487,42 @@
         }
       }
 
-      // Project filter UX hint (tiny clear affordance)
+      // Project filter UI (Phase 43): show active project as a leading inline chip inside the filter input.
+      // Keep the below-row hint as a fallback only (to keep the screen uncluttered).
       const projRow=document.getElementById('projectFilterRow');
       const projHint=document.getElementById('projectFilterHint');
       const clearProjEl=document.getElementById('clearProjectFilter');
       const proj=extractProjectToken(taskFilter);
-      if(projRow){
+
+      // Inline chip inside the input
+      if(taskProjectChipEl && taskFilterEl && taskFilterWrapEl){
         if(proj){
+          taskProjectChipEl.style.display='inline-flex';
+          taskProjectChipEl.innerHTML = `Project: <span>${escapeHtml(proj.name)}</span><span class="chipx" aria-hidden="true">✕</span>`;
+          taskProjectChipEl.setAttribute('title', 'Clear project filter');
+          taskProjectChipEl.setAttribute('aria-label', `Clear project filter (${proj.name})`);
+
+          // Adjust input padding so text never overlaps the chip.
+          // Keep it subtle + iPhone-first: no jumpy layout, just spacing.
+          try{
+            const w = taskProjectChipEl.offsetWidth || 0;
+            const pad = Math.min(260, Math.max(12, w + 22));
+            taskFilterEl.style.paddingLeft = pad + 'px';
+          }catch(e){ taskFilterEl.style.paddingLeft = '12px'; }
+        }else{
+          taskProjectChipEl.style.display='none';
+          taskProjectChipEl.innerHTML = 'Project: — <span class="chipx" aria-hidden="true">✕</span>';
+          taskFilterEl.style.paddingLeft = '';
+        }
+      }
+
+      // Below-row hint (fallback): keep it hidden unless we can’t render the inline chip.
+      if(projRow){
+        const inlineOk = !!(taskProjectChipEl && taskFilterEl && taskFilterWrapEl);
+        if(!inlineOk && proj){
           projRow.style.display='flex';
           if(projHint) projHint.innerHTML = `Project filter active: <span class="mono">${escapeHtml(proj.token)}</span>`;
           if(clearProjEl){
-            // iPhone-first: make the clear affordance feel like a chip with a tiny ✕.
             clearProjEl.innerHTML = `Project: <span>${escapeHtml(proj.name)}</span><span class="chipx" aria-hidden="true">✕</span>`;
             clearProjEl.setAttribute('title', 'Clear project filter');
             clearProjEl.setAttribute('aria-label', `Clear project filter (${proj.name})`);
@@ -2330,6 +2373,8 @@
 
     // Tasks: quick filter (ephemeral UI state)
     const taskFilterEl = document.getElementById('taskFilter');
+    const taskFilterWrapEl = document.getElementById('taskFilterWrap');
+    const taskProjectChipEl = document.getElementById('taskProjectChip');
     const clearTaskFilterEl = document.getElementById('clearTaskFilter');
     const prevDayEl = document.getElementById('prevDay');
     const nextDayEl = document.getElementById('nextDay');
@@ -2584,6 +2629,25 @@
       taskFilterEl.addEventListener('keydown', (e)=>{
         const acOpen = !!(projectAcPicks && projectAcPicks.length && projectAutocompleteRowEl && projectAutocompleteRowEl.style.display!=='none');
 
+        // Phase 43: if a project chip is active and the caret is at the start, Backspace removes the chip.
+        if(e.key==='Backspace'){
+          try{
+            const s=String(taskFilterEl.value||'');
+            const start=Number.isFinite(taskFilterEl.selectionStart) ? taskFilterEl.selectionStart : s.length;
+            const end=Number.isFinite(taskFilterEl.selectionEnd) ? taskFilterEl.selectionEnd : s.length;
+            const proj=extractProjectToken(s);
+            if(proj && start===0 && end===0){
+              e.preventDefault();
+              taskFilter = setOrReplaceProjectToken(s, '');
+              taskFilterEl.value = taskFilter;
+              hideProjectAutocomplete();
+              updateProjectAutocomplete();
+              renderBoard();
+              return;
+            }
+          }catch(err){}
+        }
+
         if(acOpen && (e.key==='ArrowDown' || e.key==='ArrowUp')){
           e.preventDefault();
           setProjectAcIndex(projectAcIndex + (e.key==='ArrowDown' ? 1 : -1));
@@ -2675,16 +2739,24 @@
       };
     }
 
+    function clearProjectOnly(){
+      if(!extractProjectToken(taskFilter)) return;
+      // Clear only the project token (keep day and any other query tokens intact).
+      taskFilter = setOrReplaceProjectToken(taskFilter, '');
+      if(taskFilterEl) taskFilterEl.value=taskFilter;
+      hideProjectAutocomplete();
+      updateProjectAutocomplete();
+      renderBoard();
+      try{ taskFilterEl?.focus(); }catch(e){}
+    }
+
     if(clearProjectFilterEl){
-      clearProjectFilterEl.onclick=()=>{
-        if(!extractProjectToken(taskFilter)) return;
-        // Clear only the project token (keep day and any other query tokens intact).
-        taskFilter = setOrReplaceProjectToken(taskFilter, '');
-        if(taskFilterEl) taskFilterEl.value=taskFilter;
-        updateProjectAutocomplete();
-        renderBoard();
-        try{ taskFilterEl?.focus(); }catch(e){}
-      };
+      clearProjectFilterEl.onclick=()=>{ clearProjectOnly(); };
+    }
+
+    // Phase 43: inline chip click clears the project token
+    if(taskProjectChipEl){
+      taskProjectChipEl.onclick=()=>{ clearProjectOnly(); };
     }
 
     document.getElementById('addProj').onclick=()=>{
