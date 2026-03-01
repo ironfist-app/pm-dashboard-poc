@@ -521,7 +521,7 @@
             <button class="btn secondary" id="clearTaskFilter">Clear</button>
           </div>
           <div class="subhint filterhelp" id="taskFilterHelp" style="display:none;">
-            Try <span class="mono">day:today</span>, <span class="mono">day:tomorrow</span>, <span class="mono">day:yesterday</span>, or <span class="mono">day:YYYY-MM-DD</span> (e.g., <span class="mono">day:2026-02-28</span>). Also: <span class="mono">project:"My Project"</span>
+            Try <span class="mono">day:today</span>, <span class="mono">day:tomorrow</span>, <span class="mono">day:yesterday</span>, <span class="mono">day:+1</span> / <span class="mono">day:-7</span>, or <span class="mono">day:YYYY-MM-DD</span> (e.g., <span class="mono">day:2026-02-28</span>). Also: <span class="mono">project:"My Project"</span>
           </div>
           <div class="subrow" id="dayFilterRow" style="display:none;">
             <div class="subhint" id="dayFilterHint">Day filter active: —</div>
@@ -909,12 +909,18 @@
         }catch(e){ return false; }
       };
 
-      // Accept shorthand: day:today / day:tomorrow / day:yesterday (normalize to day:YYYY-MM-DD).
+      // Accept shorthand: day:today / day:tomorrow / day:yesterday / day:+N / day:-N (normalize to day:YYYY-MM-DD).
       let day = tail;
       try{
         if(tail==='today') day = ymd(Date.now());
         if(tail==='tomorrow') day = ymd(Date.now()+86400000);
         if(tail==='yesterday') day = ymd(Date.now()-86400000);
+
+        // Relative offsets from today (local): day:+1, day:-7
+        if(/^[-+]\d+$/.test(tail)){
+          const delta = parseInt(tail,10);
+          day = ymd(Date.now() + (delta*86400000));
+        }
       }catch(e){}
 
       // Accept forgiving date inputs and normalize:
