@@ -66,6 +66,11 @@
       color:var(--muted);
       box-shadow: var(--shadow2);
     }
+    .pill.mini{
+      padding:5px 9px;
+      font-size:11px;
+      box-shadow:none;
+    }
 
     /* pill that behaves like a button (used for quick filters) */
     .pillbtn{
@@ -540,6 +545,12 @@
               <button class="subaction" id="clearDayFilter" type="button">Clear day</button>
             </div>
           </div>
+          <div class="subrow" id="projectFilterRow" style="display:none;">
+            <div class="subhint" id="projectFilterHint">Project filter active: —</div>
+            <div class="row" style="gap:6px; justify-content:flex-end;">
+              <button class="pill pillbtn mini" id="clearProjectFilter" type="button" aria-label="Clear project filter">Project: — ×</button>
+            </div>
+          </div>
           <div class="board" id="board"></div>
         </div>
       </div>
@@ -979,6 +990,19 @@
       return (s ? (s + ' ' + token) : token).trim();
     }
 
+    function extractProjectToken(filterStr){
+      // Returns { name, token } if a project: token exists; otherwise null.
+      try{
+        const s=String(filterStr||'');
+        const m=s.match(/(?:^|\s)project:("([^"]+)"|'([^']+)'|([^\s]+))(?=\s|$)/i);
+        if(!m) return null;
+        const name = String(m[2]||m[3]||m[4]||'').trim();
+        if(!name) return null;
+        const token = `project:"${String(name).replace(/"/g,'\\"')}"`;
+        return { name, token };
+      }catch(e){ return null; }
+    }
+
     function parseTaskFilter(raw){
       const out={ dayInfo:null, projectNeedle:'', q:'' };
       const s=String(raw||'').trim();
@@ -1320,6 +1344,26 @@
           dayRow.style.display='none';
           if(prevDayEl) prevDayEl.removeAttribute('data-day-jump');
           if(nextDayEl) nextDayEl.removeAttribute('data-day-jump');
+        }
+      }
+
+      // Project filter UX hint (tiny clear affordance)
+      const projRow=document.getElementById('projectFilterRow');
+      const projHint=document.getElementById('projectFilterHint');
+      const clearProjEl=document.getElementById('clearProjectFilter');
+      const proj=extractProjectToken(taskFilter);
+      if(projRow){
+        if(proj){
+          projRow.style.display='flex';
+          if(projHint) projHint.innerHTML = `Project filter active: <span class="mono">${escapeHtml(proj.token)}</span>`;
+          if(clearProjEl){
+            const label = `Project: ${proj.name} ×`;
+            clearProjEl.textContent = label;
+            clearProjEl.setAttribute('title', 'Clear project filter');
+          }
+        } else {
+          projRow.style.display='none';
+          if(clearProjEl) clearProjEl.textContent = 'Project: — ×';
         }
       }
 
@@ -2162,6 +2206,7 @@
     const prevDayEl = document.getElementById('prevDay');
     const nextDayEl = document.getElementById('nextDay');
     const clearDayFilterEl = document.getElementById('clearDayFilter');
+    const clearProjectFilterEl = document.getElementById('clearProjectFilter');
     if(taskFilterEl){
       taskFilterEl.addEventListener('input', ()=>{
         taskFilter = taskFilterEl.value || '';
@@ -2227,6 +2272,17 @@
         // Clear only the day token (keep any other query/project tokens intact).
         const s=String(taskFilter||'');
         taskFilter = s.replace(/(?:^|\s)day:\s*[^\s]+(?=\s|$)/i,' ').replace(/\s+/g,' ').trim();
+        if(taskFilterEl) taskFilterEl.value=taskFilter;
+        renderBoard();
+        try{ taskFilterEl?.focus(); }catch(e){}
+      };
+    }
+
+    if(clearProjectFilterEl){
+      clearProjectFilterEl.onclick=()=>{
+        if(!extractProjectToken(taskFilter)) return;
+        // Clear only the project token (keep day and any other query tokens intact).
+        taskFilter = setOrReplaceProjectToken(taskFilter, '');
         if(taskFilterEl) taskFilterEl.value=taskFilter;
         renderBoard();
         try{ taskFilterEl?.focus(); }catch(e){}
