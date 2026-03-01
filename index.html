@@ -232,6 +232,15 @@
     .card .body{ padding: 12px; }
 
     .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
+    .chips{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+      margin-left:6px;
+    }
+
     .input{
       flex:1; min-width: 220px;
       border:1px solid var(--stroke2);
@@ -536,6 +545,10 @@
           </div>
           <div class="subhint filterhelp" id="taskFilterHelp" style="display:none;">
             Try <span class="mono">day:today</span>, <span class="mono">day:tomorrow</span>, <span class="mono">day:yesterday</span>, <span class="mono">day:+1</span> / <span class="mono">day:-7</span>, or <span class="mono">day:YYYY-MM-DD</span> (e.g., <span class="mono">day:2026-02-28</span>). Also: <span class="mono">project:"My Project"</span>
+          </div>
+          <div class="subhint" id="projectAutocompleteRow" style="display:none; margin-top:-8px; margin-bottom:10px; white-space:normal; line-height:1.25;">
+            <span style="opacity:.9;">Project matches:</span>
+            <span class="chips" id="projectAutocompleteChips"></span>
           </div>
           <div class="subrow" id="dayFilterRow" style="display:none;">
             <div class="subhint" id="dayFilterHint">Day filter active: —</div>
@@ -2306,6 +2319,118 @@
     const nextDayEl = document.getElementById('nextDay');
     const clearDayFilterEl = document.getElementById('clearDayFilter');
     const clearProjectFilterEl = document.getElementById('clearProjectFilter');
+
+    const projectAutocompleteRowEl = document.getElementById('projectAutocompleteRow');
+    const projectAutocompleteChipsEl = document.getElementById('projectAutocompleteChips');
+
+    function activeProjectEditContext(str, cursorPos){
+      try{
+        const s=String(str||'');
+        const pos=Number.isFinite(cursorPos) ? cursorPos : s.length;
+        const head=s.slice(0,pos);
+
+        let last=null;
+        const re=/(^|\s)project:\s*/ig;
+        let m;
+        while((m=re.exec(head))){
+          last={
+            index:m.index,
+            leadLen:(m[1]||'').length,
+            prefixEnd: m.index + m[0].length,
+          };
+          last.tokenStart = last.index + last.leadLen;
+        }
+        if(!last) return null;
+
+        let frag=head.slice(last.prefixEnd);
+        let quote='';
+        frag = frag || '';
+        if(frag.startsWith('"') || frag.startsWith('\'')){
+          quote=frag[0];
+          frag=frag.slice(1);
+        }
+        // If user already typed a closing quote, strip it from the needle.
+        if(quote && frag.endsWith(quote)) frag=frag.slice(0,-1);
+
+        return {
+          tokenStart:last.tokenStart,
+          tokenEnd:pos,
+          quote,
+          needleRaw: frag
+        };
+      }catch(e){ return null; }
+    }
+
+    function hideProjectAutocomplete(){
+      try{
+        if(projectAutocompleteRowEl) projectAutocompleteRowEl.style.display='none';
+        if(projectAutocompleteChipsEl) projectAutocompleteChipsEl.innerHTML='';
+      }catch(e){}
+    }
+
+    function updateProjectAutocomplete(){
+      try{
+        if(!taskFilterEl || !projectAutocompleteRowEl || !projectAutocompleteChipsEl) return;
+
+        const s=String(taskFilterEl.value||'');
+        const pos=Number.isFinite(taskFilterEl.selectionStart) ? taskFilterEl.selectionStart : s.length;
+        const ctx=activeProjectEditContext(s, pos);
+        if(!ctx){ hideProjectAutocomplete(); return; }
+
+        const needle=normalize(ctx.needleRaw||'');
+        const projects=Array.isArray(state.projects) ? state.projects : [];
+        if(!projects.length){ hideProjectAutocomplete(); return; }
+
+        const scored=[];
+        for(const p of projects){
+          const name=String(p?.name||'').trim();
+          if(!name) continue;
+          const n=normalize(name);
+          let score=999;
+          if(!needle) score=10;
+          else if(n===needle) score=0;
+          else if(n.startsWith(needle)) score=1;
+          else if(n.includes(needle)) score=2;
+          else continue;
+          scored.push({ p, score, n });
+        }
+
+        scored.sort((a,b)=> (a.score-b.score) || (a.n<b.n?-1:a.n>b.n?1:0));
+        const picks=scored.slice(0,6).map(x=>x.p);
+        if(!picks.length){ hideProjectAutocomplete(); return; }
+
+        projectAutocompleteChipsEl.innerHTML='';
+        for(const p of picks){
+          const btn=document.createElement('button');
+          btn.type='button';
+          btn.className='pill pillbtn mini';
+          btn.textContent=String(p.name||'').trim();
+          btn.onclick=()=>{
+            try{ flashTap(btn); }catch(e){}
+
+            const curS=String(taskFilterEl.value||'');
+            const curPos=Number.isFinite(taskFilterEl.selectionStart) ? taskFilterEl.selectionStart : curS.length;
+            const curCtx=activeProjectEditContext(curS, curPos) || ctx;
+            const insert=`project:"${String(p.name||'').replace(/"/g,'\\"')}"`;
+
+            let out = curS.slice(0, curCtx.tokenStart) + insert + curS.slice(curCtx.tokenEnd);
+            out = out.replace(/\s+/g,' ').trim();
+
+            taskFilter = out;
+            taskFilterEl.value = out;
+            try{ taskFilterEl.focus(); taskFilterEl.setSelectionRange(out.length, out.length); }catch(e){}
+            try{ bumpRecentProjectId(p.id); }catch(e){}
+
+            renderBoard();
+            updateProjectAutocomplete();
+          };
+          projectAutocompleteChipsEl.appendChild(btn);
+        }
+
+        projectAutocompleteRowEl.style.display='block';
+      }catch(e){ hideProjectAutocomplete(); }
+    }
+
     if(taskFilterEl){
       taskFilterEl.addEventListener('input', ()=>{
         taskFilter = taskFilterEl.value || '';
@@ -2319,12 +2444,14 @@
           try{ taskFilterEl.setSelectionRange(taskFilter.length, taskFilter.length); }catch(e){}
         }
 
+        updateProjectAutocomplete();
         renderBoard();
       });
       taskFilterEl.addEventListener('keydown', (e)=>{
         if(e.key==='Escape'){
           taskFilter='';
           taskFilterEl.value='';
+          hideProjectAutocomplete();
           renderBoard();
         }
       });
@@ -2333,6 +2460,7 @@
       clearTaskFilterEl.onclick=()=>{
         taskFilter='';
         if(taskFilterEl) taskFilterEl.value='';
+        hideProjectAutocomplete();
         renderBoard();
       };
     }
@@ -2359,6 +2487,7 @@
         taskFilterEl.value = taskFilter;
         try{ taskFilterEl.focus(); taskFilterEl.setSelectionRange(taskFilter.length, taskFilter.length); }catch(e){}
       }
+      updateProjectAutocomplete();
       renderBoard();
     }
 
@@ -2372,6 +2501,7 @@
         const s=String(taskFilter||'');
         taskFilter = s.replace(/(?:^|\s)day:\s*[^\s]+(?=\s|$)/i,' ').replace(/\s+/g,' ').trim();
         if(taskFilterEl) taskFilterEl.value=taskFilter;
+        updateProjectAutocomplete();
         renderBoard();
         try{ taskFilterEl?.focus(); }catch(e){}
       };
@@ -2383,6 +2513,7 @@
         // Clear only the project token (keep day and any other query tokens intact).
         taskFilter = setOrReplaceProjectToken(taskFilter, '');
         if(taskFilterEl) taskFilterEl.value=taskFilter;
+        updateProjectAutocomplete();
         renderBoard();
         try{ taskFilterEl?.focus(); }catch(e){}
       };
