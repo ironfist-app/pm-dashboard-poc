@@ -67,6 +67,15 @@
       box-shadow: var(--shadow2);
     }
 
+    /* pill that behaves like a button (used for quick filters) */
+    .pillbtn{
+      appearance:none;
+      cursor:pointer;
+      user-select:none;
+    }
+    .pillbtn:active{ transform: translateY(1px) scale(.99); }
+    .pillbtn:hover{ border-color: rgba(255,255,255,.18); }
+
     .subhint{
       font-size:11px;
       color: rgba(169,177,201,.92);
@@ -958,6 +967,18 @@
       }catch(e){ return ''; }
     }
 
+    function setOrReplaceProjectToken(filterStr, projectName){
+      const token = projectName ? `project:"${String(projectName).replace(/"/g,'\\"')}"` : '';
+      let s=String(filterStr||'');
+
+      // Remove existing project:… token (preserve other tokens like day:…)
+      s = s.replace(/(?:^|\s)project:("[^"]*"|'[^']*'|[^\s]+)(?=\s|$)/ig, ' ');
+      s = s.replace(/\s+/g,' ').trim();
+
+      if(!token) return s;
+      return (s ? (s + ' ' + token) : token).trim();
+    }
+
     function parseTaskFilter(raw){
       const out={ dayInfo:null, projectNeedle:'', q:'' };
       const s=String(raw||'').trim();
@@ -1181,7 +1202,10 @@
     function cardMetaBits({colTitle, card}){
       const bits=[`<span>${escapeHtml(colTitle)}</span>`, `<span>Created: ${fmtTime(card.createdAt)}</span>`];
       const pn = card.projectId ? getProjectNameById(card.projectId) : '';
-      if(pn) bits.unshift(`<span class="pill" style="padding:4px 8px; box-shadow:none;">${escapeHtml(pn)}</span>`);
+      if(pn){
+        // Button: tap to quick-filter by project (iPhone-friendly)
+        bits.unshift(`<button class="pill pillbtn" type="button" data-projid="${escapeHtml(card.projectId)}" style="padding:4px 8px; box-shadow:none;">${escapeHtml(pn)}</button>`);
+      }
       return bits.join('');
     }
 
@@ -1370,7 +1394,33 @@
             <div class="meta">${cardMetaBits({colTitle:col.title, card})}</div>
           `;
 
-          const [edit,del]=li.querySelectorAll('button');
+          const [edit,del]=li.querySelectorAll('.actions button');
+
+          // Quick project filter (tap the project pill)
+          const projBtn = li.querySelector('button[data-projid]');
+          if(projBtn){
+            projBtn.addEventListener('click', (e)=>{
+              e.preventDefault();
+              e.stopPropagation();
+              const pid = projBtn.getAttribute('data-projid') || '';
+              const pname = pid ? getProjectNameById(pid) : '';
+              if(!pname) return;
+
+              taskFilter = setOrReplaceProjectToken(taskFilter, pname);
+              // Keep day:… token normalized if present
+              const norm = normalizeDayTokenInFilterString(taskFilter);
+              if(norm?.normalizedStr) taskFilter = norm.normalizedStr;
+
+              const filterEl=document.getElementById('taskFilter');
+              if(filterEl){
+                filterEl.value = taskFilter;
+                try{ filterEl.focus(); filterEl.setSelectionRange(taskFilter.length, taskFilter.length); }catch(err){}
+              }
+              renderBoard();
+              toast('Filtered.');
+            });
+          }
+
           edit.onclick=()=>{
             const fromCol = col.id;
 
@@ -1719,7 +1769,7 @@
             <div class="meta">${cardMetaBits({colTitle:col.title, card})}</div>
           `;
 
-          const [edit,del]=li.querySelectorAll('button');
+          const [edit,del]=li.querySelectorAll('.actions button');
           edit.onclick=()=>{
             const fromCol = col.id;
 
