@@ -964,8 +964,9 @@
       if(!s) return out;
 
       // day:... can be anywhere; normalize to our canonical day:YYYY-MM-DD.
+      // Accept optional whitespace after colon: "day: +1".
       try{
-        const m=s.match(/(?:^|\s)day:([^\s]+)(?=\s|$)/i);
+        const m=s.match(/(?:^|\s)day:\s*([^\s]+)(?=\s|$)/i);
         if(m){
           const info=parseDayFilter('day:'+m[1]);
           if(info){
@@ -987,6 +988,23 @@
 
       out.q = normalize(raw);
       return out;
+    }
+
+    // Normalize just the day token inside a larger filter string.
+    // Example: "urgent day:+01" -> "urgent day:YYYY-MM-DD"
+    function normalizeDayTokenInFilterString(str){
+      try{
+        const s=String(str||'');
+        const m=s.match(/(?:^|\s)day:\s*([^\s]+)(?=\s|$)/i);
+        if(!m) return null;
+        const info=parseDayFilter('day:'+m[1]);
+        if(!info) return null;
+
+        const lead = m[0].startsWith(' ') ? ' ' : '';
+        const repl = `${lead}${info.normalized}`;
+        const normalizedStr = s.replace(m[0], repl);
+        return { normalizedStr, info };
+      }catch(e){ return null; }
     }
 
     function matchesTaskFilter(card, colId){
@@ -1226,7 +1244,7 @@
       // Discoverability: keep help subtle + context-aware
       if(helpEl){
         const f=normalize(taskFilter);
-        const dayInfo=parseDayFilter(taskFilter);
+        const dayInfo=parseTaskFilter(taskFilter).dayInfo;
 
         const showEmptyHelp = !f;
         const wantsDay = /(^|\s)day:/.test(f);
@@ -1264,11 +1282,11 @@
       const dayHint=document.getElementById('dayFilterHint');
       const prevDayEl=document.getElementById('prevDay');
       const nextDayEl=document.getElementById('nextDay');
-      const info=parseDayFilter(taskFilter);
+      const info=parseTaskFilter(taskFilter).dayInfo;
       if(dayRow){
         if(info){
           dayRow.style.display='flex';
-          if(dayHint) dayHint.textContent = `Day filter active: ${info.pretty}`;
+          if(dayHint) dayHint.innerHTML = `Day filter active: ${escapeHtml(info.pretty)} <span class="mono">${escapeHtml(info.normalized)}</span>`;
 
           const prev = shiftDayYmd(info.day, -1);
           const next = shiftDayYmd(info.day, 1);
@@ -2062,10 +2080,11 @@
       taskFilterEl.addEventListener('input', ()=>{
         taskFilter = taskFilterEl.value || '';
 
-        // If user typed a shorthand day filter, quietly normalize it.
-        const info=parseDayFilter(taskFilter);
-        if(info?.normalized && normalize(taskFilter)!==normalize(info.normalized)){
-          taskFilter = info.normalized;
+        // If user typed a shorthand day filter (even inside a larger query), quietly normalize it.
+        // Supports: day:today / day:tomorrow / day:yesterday / day:+0 / day:+01 / day:-7 / day:2026-2-8 / day: +1
+        const norm=normalizeDayTokenInFilterString(taskFilter);
+        if(norm?.normalizedStr && normalize(taskFilter)!==normalize(norm.normalizedStr)){
+          taskFilter = norm.normalizedStr;
           taskFilterEl.value = taskFilter;
           try{ taskFilterEl.setSelectionRange(taskFilter.length, taskFilter.length); }catch(e){}
         }
@@ -2104,9 +2123,11 @@
 
     if(clearDayFilterEl){
       clearDayFilterEl.onclick=()=>{
-        if(!parseDayFilter(taskFilter)) return;
-        taskFilter='';
-        if(taskFilterEl) taskFilterEl.value='';
+        if(!parseTaskFilter(taskFilter).dayInfo) return;
+        // Clear only the day token (keep any other query/project tokens intact).
+        const s=String(taskFilter||'');
+        taskFilter = s.replace(/(?:^|\s)day:\s*[^\s]+(?=\s|$)/i,' ').replace(/\s+/g,' ').trim();
+        if(taskFilterEl) taskFilterEl.value=taskFilter;
         renderBoard();
         try{ taskFilterEl?.focus(); }catch(e){}
       };
